@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>海地老皇帝 — Monarchy L'Haiti Petit</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app">
+        <header>
+            <div id="titleWrap">
+                <h1>海地老皇帝</h1>
+                <span id="titleSub">Monarchy L'Haiti Petit</span>
+            </div>
+            <div id="infoWrap">
+                <div id="infoLeft">
+                    <span id="gameInfo"></span>
+                    <span id="orgLevelInfo"></span>
+                </div>
+                <div id="classLegend"></div>
+            </div>
+            <div id="headerBtns">
+                <button onclick="saveGame()">存档</button>
+                <button onclick="exportSave()">导出</button>
+                <button onclick="importSave()">读取</button>
+                <button onclick="loadGame()">读档</button>
+                <button onclick="resetGame()">新游戏</button>
+                <button onclick="toggleLayout()">⇔翻转</button>
+            </div>
+            <input type="file" id="importFileInput" accept=".txt" style="display:none;" onchange="handleImportFile(event)">
+        </header>
+
+        <main>
+            <div id="screenMenu" class="screen active">
+                <h2>海地老皇帝</h2>
+                <p class="subtitle">Monarchy L'Haiti Petit &mdash; by hsu hsieh</p>
+                <button onclick="startNewGame()">新游戏</button>
+                <button onclick="loadGame()">读档</button>
+            </div>
+
+            <div id="screenCreate" class="screen">
+                <h2>选择你的角色</h2>
+                <div id="charOptions"></div>
+                <div id="nameInputArea" style="display:none;">
+                    <label>选择国姓：</label>
+                    <div id="surnamePicker"></div>
+                    <label style="margin-top:6px;display:inline-block;">名：</label>
+                    <input type="text" id="charNameInput" maxlength="10" placeholder="输入名字...">
+                    <button onclick="randomizeName()">随机</button>
+                    <button onclick="confirmCharacter()">确认</button>
+                </div>
+            </div>
+
+            <div id="screenGame" class="screen">
+                <div id="orgPanel"></div>
+                <div id="orgTooltip"></div>
+                <div id="gameLayout">
+                    <div id="logPanel">
+                        <h3>游戏日志</h3>
+                        <div id="logContent"></div>
+                        <button onclick="clearLog()">清空日志</button>
+                    </div>
+                    <div id="charPanel">
+                        <h3>角色列表</h3>
+                        <div id="charList"></div>
+                    </div>
+                    <div id="actionPanel">
+                        <h3>行动</h3>
+                        <div id="actionContent">
+                            <p id="actionPrompt">选择一个角色来执行行动</p>
+                            <div id="actionBtns"></div>
+                        </div>
+                        <div id="yearEndArea">
+                            <button id="btnNextYear" onclick="nextYear()">下一年 →</button>
+                        </div>
+                    </div>
+                    <div id="combinedPanel">
+                        <div id="combinedTabBar">
+                            <button class="court-tab active" data-tab="cabinet" onclick="switchCombinedTab('cabinet')">内阁</button>
+                            <button class="court-tab" data-tab="harem" onclick="switchCombinedTab('harem')">后宫</button>
+                            <button class="court-tab" data-tab="unavailable" onclick="switchCombinedTab('unavailable')">不可用角色</button>
+                            <button class="court-tab" data-tab="dead" onclick="switchCombinedTab('dead')">死亡角色</button>
+                        </div>
+                        <div id="combinedCabinet" class="court-tab-panel active"></div>
+                        <div id="combinedHarem" class="court-tab-panel"></div>
+                        <div id="combinedUnavailable" class="court-tab-panel"></div>
+                        <div id="combinedDead" class="court-tab-panel"></div>
+                    </div>
+                </div>
+                <div id="recruitPanel">
+                    <div id="recruitRegular" class="recruit-col">
+                        <div class="recruit-col-header">常规人才</div>
+                        <div id="talentMarketSlots" class="recruit-slots"></div>
+                    </div>
+                    <div id="recruitBounty" class="recruit-col">
+                        <div class="recruit-col-header">悬赏招募</div>
+                        <div id="recruitBountyContent"></div>
+                    </div>
+                    <div id="recruitSpecial" class="recruit-col">
+                        <div class="recruit-col-header">特殊人才</div>
+                        <div id="recruitSpecialContent"></div>
+                    </div>
+                </div>
+                <div id="bottomPanels">
+                    <div id="mapPanel" class="collapsed">
+                        <div class="panel-header">
+                            <h3>地图</h3>
+                            <button class="collapse-btn" onclick="toggleMap()">▶</button>
+                        </div>
+                        <div id="mapContent"></div>
+                    </div>
+                    <div id="historyPanel">
+                        <div class="panel-header">
+                            <h3>历史人物</h3>
+                        </div>
+                        <div id="historyPanelContent"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="charDetailOverlay" class="overlay" style="display:none;">
+                <div class="overlay-content" style="max-width:600px;">
+                    <div class="overlay-header">
+                        <h2 id="charDetailTitle">角色详情</h2>
+                        <button class="overlay-close" onclick="closeCharDetail()">✕</button>
+                    </div>
+                    <div id="charDetailContent"></div>
+                </div>
+            </div>
+            <div id="orgBreakdownOverlay" class="overlay" style="display:none;">
+                <div class="overlay-content" style="max-width:500px;">
+                    <div class="overlay-header">
+                        <h2 id="orgBreakdownTitle">数值详情</h2>
+                        <button class="overlay-close" onclick="closeOrgBreakdown()">✕</button>
+                    </div>
+                    <div id="orgBreakdownContent"></div>
+                </div>
+            </div>
+            <div id="historyOverlay" class="overlay" style="display:none;">
+                <div class="overlay-content" style="max-width:550px;">
+                    <div class="overlay-header">
+                        <h2>历史人物</h2>
+                        <button class="overlay-close" onclick="closeHistory()">✕</button>
+                    </div>
+                    <div id="historyContent"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
