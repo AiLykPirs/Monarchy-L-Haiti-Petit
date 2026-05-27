@@ -48,7 +48,17 @@
                     <label style="margin-top:6px;display:inline-block;">名：</label>
                     <input type="text" id="charNameInput" maxlength="10" placeholder="输入名字...">
                     <button onclick="randomizeName()">随机</button>
-                    <button onclick="confirmCharacter()">确认</button>
+                    <div style="margin-top:8px;">
+                        <label>玩家ID：</label>
+                        <input type="text" id="playerIdInput" placeholder="输入玩家ID..." value="player">
+                    </div>
+                    <div style="margin-top:6px;">
+                        <label>驻地名称：</label>
+                        <input type="text" id="hqNameInput" placeholder="输入办公地点..." value="办公室">
+                    </div>
+                    <div style="margin-top:8px;">
+                        <button onclick="confirmCharacter()">确认</button>
+                    </div>
                 </div>
             </div>
 
@@ -60,9 +70,15 @@
                         <h3>游戏日志</h3>
                         <div id="logContent"></div>
                         <button onclick="clearLog()">清空日志</button>
+                        <button onclick="exportLog()" style="margin-left:4px;">导出日志</button>
+                        <button onclick="importLog()" style="margin-left:4px;">导入日志</button>
                     </div>
                     <div id="charPanel">
                         <h3>角色列表</h3>
+                        <div id="charListTabs">
+                            <button class="char-tab active" data-tab="free" onclick="switchCharTab('free')">自由角色</button>
+                            <button class="char-tab" data-tab="worker" onclick="switchCharTab('worker')">职人角色</button>
+                        </div>
                         <div id="charList"></div>
                     </div>
                     <div id="actionPanel">
@@ -144,6 +160,15 @@
                         <button class="overlay-close" onclick="closeHistory()">✕</button>
                     </div>
                     <div id="historyContent"></div>
+                </div>
+            </div>
+            <div id="gameOverOverlay" class="overlay" style="display:none;">
+                <div class="overlay-content" style="max-width:600px;text-align:center;">
+                    <div class="overlay-header">
+                        <h2 id="gameOverTitle">游戏结束</h2>
+                        <button class="overlay-close" onclick="closeGameOver()">✕</button>
+                    </div>
+                    <div id="gameOverContent"></div>
                 </div>
             </div>
         </main>

@@ -48,10 +48,15 @@ const XCH_LABELS = { '-3': '傻逼了', '-2': '大失败', '-1': '失败', '0': 
 let G = null;
 let actingCharId = null;
 let yearActionsDone = false;
+let currentActionId = null;
 
 const STAT_KEYS = ['int', 'cha', 'sta', 'sex', 'psq', 'hel', 'con', 'wel', 'luc', 'cal', 'edu', 'exp'];
 const STAT_LABELS = { int: '智力', cha: '魅力', sta: '劳动力', sex: '性吸引力', psq: '体格', hel: '寿命', con: '魄力', wel: '财富', luc: '运气', cal: '灾厄', edu: '教育', exp: '经验' };
 const STAT_COLORS = { int: '#4fc3f7', cha: '#ffb74d', sta: '#81c784', sex: '#f06292', psq: '#ff8a65', hel: '#aed581', con: '#ba68c8', wel: '#ce93d8', luc: '#ffd54f', cal: '#90caf9', edu: '#a5d6a7', exp: '#4db6ac' };
+function statColor(key, ch) {
+    if (key === 'con' && ch && isHaoQiang(ch)) return '#ff0000';
+    return STAT_COLORS[key];
+}
 
 const STAT_DESC = {
     int: { t: '智力', r: [[1,'蠢笨如猪'],[11,'呆傻如畜'],[21,'略显愚笨'],[31,'智力正常'],[51,'老谋深算'],[71,'在世诸葛'],[91,'无所不知']] },
@@ -88,7 +93,7 @@ function ageDesc(age) {
 
 const CLASS_MAP = {
     '皇帝': '天子',
-    '正宫': '后宫', '侧室': '后宫',
+    '正宫': '后宫',
     '宰相': '大臣', '监工': '大臣', '将军': '大臣',
     '学者': '军工', '艺人': '军工', '劳工': '军工', '士兵': '军工',
     '无业者': '平民', '休养者': '平民',
@@ -97,8 +102,20 @@ const CLASS_MAP = {
 
 const CLASS_COLORS = { '天子': '#e94560', '后宫': '#f48fb1', '储君': '#ffd54f', '大臣': '#4fc3f7', '军工': '#81c784', '平民': '#a0a0b0', '贱民': '#888' };
 
-function getClass(profession) {
+function isConsort(ch) {
+    if (!ch || ch.isDead || ch.exitStatus) return false;
+    const emp = G.chars.find(e => e.id === G.leaderId);
+    if (!emp) return false;
+    return (emp.lovers && emp.lovers.includes(ch.id)) || (ch.lovers && ch.lovers.includes(emp.id));
+}
+
+function getClass(profession, ch) {
+    if (ch && isConsort(ch)) return '后宫';
     return CLASS_MAP[profession] || '平民';
+}
+
+function charClass(c) {
+    return getClass(c.profession, c);
 }
 
 function charClass(c) {
@@ -110,7 +127,8 @@ function charClass(c) {
 function findCharById(id) {
     return G.chars.find(x => x.id === id)
         || (G.historicalFigures || []).find(x => x.id === id)
-        || (G.unavailableChars || []).find(x => x.id === id);
+        || (G.unavailableChars || []).find(x => x.id === id)
+        || (G.deadChars || []).find(x => x.id === id);
 }
 
 function getParents(c) {
@@ -132,11 +150,33 @@ function logLifeEvent(c, type, desc) {
     c.lifeEvents.push({ year: G.time, type, desc });
 }
 
+function logFamilyExitEvent(c, desc) {
+    if (c.spouseId) {
+        const spouse = G.chars.find(x => x.id === c.spouseId);
+        if (spouse && !spouse.exitStatus) {
+            logLifeEvent(spouse, 'family_exit', '配偶' + c.name + desc);
+        }
+    }
+    (c.children || []).forEach(childId => {
+        const child = G.chars.find(x => x.id === childId);
+        if (child && !child.exitStatus) {
+            logLifeEvent(child, 'family_exit', '父母' + c.name + desc);
+        }
+    });
+    (c.parents || []).forEach(parentId => {
+        const parent = G.chars.find(x => x.id === parentId);
+        if (parent && !parent.exitStatus) {
+            logLifeEvent(parent, 'family_exit', '子女' + c.name + desc);
+        }
+    });
+}
+
 const LIFE_EVENT_ICONS = {
     entry: '入场', exit: '✟离场', appoint: '⬆任职', demote: '⬇卸任',
     marry: '❤嫁娶', childbirth: '⊛生子', coup: '⚔政变',
     dice_crit: '★特大', dice_fail: '✘大败',
-    exile: '↯流放', kill: '☠处决', summon: '☎召见'
+    exile: '↯流放', kill: '☠处决', summon: '☎召见',
+    family_exit: '⊲亲属离场'
 };
 
 // ---- Organization ----
@@ -150,9 +190,14 @@ function initOrganization() {
     G.organization = {
         current: {
             tec: 0, cul: 0, prd: 0, pop: 0, mil: 0, inf: 0, tre: 0, apo: 0, mdt: 0, lvl: 0,
-            btec: 0, etec: 0, bcul: 0, ecul: 0, bprd: 0, eprd: 0,
-            bpop: 0, epop: 0, bmil: 0, emil: 0, binf: 0, einf: 0,
-            btre: 0, etre: 0, bapo: 0, eapo: 0, bmdt: 0, emdt: 0
+            btec: 0, etec: 0, atec: 0, bcul: 0, ecul: 0, acul: 0,
+            bprd: 0, eprd: 0, aprd: 0,
+            bpop: 0, epop: 0, apop: 0,
+            bmil: 0, emil: 0, amil: 0,
+            binf: 0, einf: 0, ainf: 0,
+            btre: 0, etre: 0,
+            bapo: 0, eapo: 0, aapo: 0,
+            bmdt: 0, emdt: 0
         },
         peak: {}
     };
@@ -195,12 +240,12 @@ function updateOrganization() {
     cur.btec = btec; cur.bcul = bcul; cur.bprd = bprd;
     cur.bpop = bpop; cur.bmil = bmil; cur.bapo = bapo;
 
-    const tec = btec + (cur.etec || 0);
-    const cul = bcul + (cur.ecul || 0);
-    const prd = bprd + (cur.eprd || 0);
-    const pop = bpop + (cur.epop || 0);
-    const mil = bmil + (cur.emil || 0);
-    const apo = bapo + (cur.eapo || 0);
+    const tec = btec + (cur.etec || 0) + (cur.atec || 0);
+    const cul = bcul + (cur.ecul || 0) + (cur.acul || 0);
+    const prd = bprd + (cur.eprd || 0) + (cur.aprd || 0);
+    const pop = bpop + (cur.epop || 0) + (cur.apop || 0);
+    const mil = bmil + (cur.emil || 0) + (cur.amil || 0);
+    const apo = bapo + (cur.eapo || 0) + (cur.aapo || 0);
 
     cur.tre = cur.btre + cur.etre;
 
@@ -208,9 +253,9 @@ function updateOrganization() {
         + 0.7 * (emp ? emp.con : 0)
         + 0.125 * ([consort, chancellor, overseer, general].reduce((s, r) => s + (r ? r.con : 0), 0))
         + (1 / 7) * cur.tre;
-    const inf = binf + (cur.einf || 0);
+    const inf = binf + (cur.einf || 0) + (cur.ainf || 0);
 
-    const mdt = 500 - (G.mdtPenalty || 0) + inf - apo;
+    const mdt = 500 - (G.mdtPenalty || 0) + (G.mdtRestorerAccum || 0) + inf - apo;
 
     cur.tec = tec; cur.cul = cul; cur.prd = prd; cur.pop = pop; cur.mil = mil;
     cur.inf = inf; cur.apo = apo; cur.mdt = mdt;
@@ -274,29 +319,39 @@ function orgTooltipText(key) {
     if (key === 'tec') {
         const empC = emp ? emp.int : 0;
         const popC = avg('int') * muln;
-        return `皇帝(int:${emp ? emp.int : '—'}):${pf(empC)} + 民众 avg(int):${pf(avg('int'))}×${pf(muln)}:${pf(popC)} + 额外:${pf(cur.etec||0)} = ${pf(cur.tec)}`;
+        let s = `皇帝(int:${emp ? emp.int : '—'}):${pf(empC)} + 民众 avg(int):${pf(avg('int'))}×${pf(muln)}:${pf(popC)} + 额外:${pf(cur.etec||0)}`;
+        if (cur.atec) s += ` + 累计:${pf(cur.atec)}`;
+        return s + ` = ${pf(cur.tec)}`;
     }
     if (key === 'cul') {
         const empC = emp ? emp.cha : 0;
         const popC = avg('cha') * muln;
-        return `皇帝(cha:${emp ? emp.cha : '—'}):${pf(empC)} + 民众 avg(cha):${pf(avg('cha'))}×${pf(muln)}:${pf(popC)} + 额外:${pf(cur.ecul||0)} = ${pf(cur.cul)}`;
+        let s = `皇帝(cha:${emp ? emp.cha : '—'}):${pf(empC)} + 民众 avg(cha):${pf(avg('cha'))}×${pf(muln)}:${pf(popC)} + 额外:${pf(cur.ecul||0)}`;
+        if (cur.acul) s += ` + 累计:${pf(cur.acul)}`;
+        return s + ` = ${pf(cur.cul)}`;
     }
     if (key === 'prd') {
         const overseerC = overseer ? overseer.sta : 0;
         const popC = avg('sta') * muln;
-        return `监工(sta:${overseer ? overseer.sta : '—'}):${pf(overseerC)} + 民众 avg(sta):${pf(avg('sta'))}×${pf(muln)}:${pf(popC)} + 额外:${pf(cur.eprd||0)} = ${pf(cur.prd)}`;
+        let s = `监工(sta:${overseer ? overseer.sta : '—'}):${pf(overseerC)} + 民众 avg(sta):${pf(avg('sta'))}×${pf(muln)}:${pf(popC)} + 额外:${pf(cur.eprd||0)}`;
+        if (cur.aprd) s += ` + 累计:${pf(cur.aprd)}`;
+        return s + ` = ${pf(cur.prd)}`;
     }
     if (key === 'pop') {
         const overseerC = overseer ? overseer.sex * 0.5 : 0;
         const popC = avg('sex') * 0.5 + 2 * n;
-        return `监工(sex:${overseer ? overseer.sex : '—'}×0.5):${pf(overseerC)} + 民众 avg(sex)/2:${pf(avg('sex')*0.5)} + 基数:${pf(2*n)}:${pf(popC)} + 额外:${pf(cur.epop||0)} = ${pf(cur.pop)} (人数:${n})`;
+        let s = `监工(sex:${overseer ? overseer.sex : '—'}×0.5):${pf(overseerC)} + 民众 avg(sex)/2:${pf(avg('sex')*0.5)} + 基数:${pf(2*n)}:${pf(popC)} + 额外:${pf(cur.epop||0)}`;
+        if (cur.apop) s += ` + 累计:${pf(cur.apop)}`;
+        return s + ` = ${pf(cur.pop)} (人数:${n})`;
     }
     if (key === 'mil') {
         const empC = emp ? (emp.psq + emp.con) * 0.25 : 0;
         const generalC = general ? (general.psq + general.con) * 0.25 : 0;
         const popC = avg('psq') * muln;
         const n_mil = alive.filter(c => c.profession === '士兵').length;
-        return `皇帝(psq+con:${emp ? emp.psq + emp.con : '—'}×0.25):${pf(empC)} + 将军(psq+con:${general ? general.psq + general.con : '—'}×0.25):${pf(generalC)} + 民众 avg(psq):${pf(avg('psq'))}×${pf(muln)}:${pf(popC)} + 士兵:${pf(n_mil)} + 额外:${pf(cur.emil||0)} = ${pf(cur.mil)}`;
+        let s = `皇帝(psq+con:${emp ? emp.psq + emp.con : '—'}×0.25):${pf(empC)} + 将军(psq+con:${general ? general.psq + general.con : '—'}×0.25):${pf(generalC)} + 民众 avg(psq):${pf(avg('psq'))}×${pf(muln)}:${pf(popC)} + 士兵:${pf(n_mil)} + 额外:${pf(cur.emil||0)}`;
+        if (cur.amil) s += ` + 累计:${pf(cur.amil)}`;
+        return s + ` = ${pf(cur.mil)}`;
     }
     if (key === 'inf') {
         const prodC = 0.2 * (cur.tec + cur.cul + cur.prd + cur.pop + cur.mil);
@@ -304,12 +359,16 @@ function orgTooltipText(key) {
         const ministers = [consort, chancellor, overseer, general].filter(Boolean);
         const ministerC = 0.125 * ministers.reduce((s, r) => s + r.con, 0);
         const treC = (1 / 7) * cur.tre;
-        return `五业×0.2:${pf(prodC)} + 皇帝con×0.7:${pf(empC)} + 重臣con×0.125:${pf(ministerC)} + 银库/7:${pf(treC)} + 额外:${pf(cur.einf||0)} = ${pf(cur.inf)}`;
+        let s = `五业×0.2:${pf(prodC)} + 皇帝con×0.7:${pf(empC)} + 重臣con×0.125:${pf(ministerC)} + 银库/7:${pf(treC)} + 额外:${pf(cur.einf||0)}`;
+        if (cur.ainf) s += ` + 累计:${pf(cur.ainf)}`;
+        return s + ` = ${pf(cur.inf)}`;
     }
     if (key === 'apo') {
         const empC = emp ? emp.cal : 0;
         const popC = avg('cal') * (0.2 + n / 10);
-        return `皇帝(cal:${emp ? emp.cal : '—'}):${pf(empC)} + 民众 avg(cal):${pf(avg('cal'))}×${pf(0.2 + n / 10)}:${pf(popC)} + 额外:${pf(cur.eapo||0)} = ${pf(cur.apo)}`;
+        let s = `皇帝(cal:${emp ? emp.cal : '—'}):${pf(empC)} + 民众 avg(cal):${pf(avg('cal'))}×${pf(0.2 + n / 10)}:${pf(popC)} + 额外:${pf(cur.eapo||0)}`;
+        if (cur.aapo) s += ` + 累计:${pf(cur.aapo)}`;
+        return s + ` = ${pf(cur.apo)}`;
     }
     if (key === 'mdt') {
         const penalty = G.mdtPenalty || 0;
@@ -374,28 +433,32 @@ function showOrgBreakdown(key) {
         lines.push(`科技 = 皇帝智力 + 民众平均智力×人数系数`);
         lines.push(`  皇帝贡献: ${pf(empC)} (int=${emp ? emp.int : '—'})`);
         lines.push(`  民众贡献: ${pf(popC)} (avg(int)=${pf(avg('int'))} × ${pf(muln)})`);
-        lines.push(`  基础(btec): ${pf(empC + popC)} + 额外(etec): ${pf(cur.etec || 0)} = ${pf(cur.tec)}`);
+        if (cur.atec) lines.push(`  累计(atec): ${pf(cur.atec)}`);
+        lines.push(`  = ${pf(cur.tec)} (btec:${pf(empC + popC)} + etec:${pf(cur.etec || 0)}${cur.atec ? ' + atec:' + pf(cur.atec) : ''})`);
     } else if (key === 'cul') {
         const empC = emp ? emp.cha : 0;
         const popC = avg('cha') * muln;
         lines.push(`文化 = 皇帝魅力 + 民众平均魅力×人数系数`);
         lines.push(`  皇帝贡献: ${pf(empC)} (cha=${emp ? emp.cha : '—'})`);
         lines.push(`  民众贡献: ${pf(popC)} (avg(cha)=${pf(avg('cha'))} × ${pf(muln)})`);
-        lines.push(`  基础(bcul): ${pf(empC + popC)} + 额外(ecul): ${pf(cur.ecul || 0)} = ${pf(cur.cul)}`);
+        if (cur.acul) lines.push(`  累计(acul): ${pf(cur.acul)}`);
+        lines.push(`  = ${pf(cur.cul)} (bcul:${pf(empC + popC)} + ecul:${pf(cur.ecul || 0)}${cur.acul ? ' + acul:' + pf(cur.acul) : ''})`);
     } else if (key === 'prd') {
         const overseerC = overseer ? overseer.sta : 0;
         const popC = avg('sta') * muln;
         lines.push(`生产 = 监工劳力 + 民众平均劳力×人数系数`);
         lines.push(`  监工贡献: ${pf(overseerC)} (sta=${overseer ? overseer.sta : '—'})`);
         lines.push(`  民众贡献: ${pf(popC)} (avg(sta)=${pf(avg('sta'))} × ${pf(muln)})`);
-        lines.push(`  基础(bprd): ${pf(overseerC + popC)} + 额外(eprd): ${pf(cur.eprd || 0)} = ${pf(cur.prd)}`);
+        if (cur.aprd) lines.push(`  累计(aprd): ${pf(cur.aprd)}`);
+        lines.push(`  = ${pf(cur.prd)} (bprd:${pf(overseerC + popC)} + eprd:${pf(cur.eprd || 0)}${cur.aprd ? ' + aprd:' + pf(cur.aprd) : ''})`);
     } else if (key === 'pop') {
         const overseerC = overseer ? overseer.sex * 0.5 : 0;
         const popC = avg('sex') * 0.5 + 2 * n;
         lines.push(`人口 = 监工性吸引力/2 + 民众平均性吸引力/2 + 人口基数`);
         lines.push(`  监工贡献: ${pf(overseerC)} (sex=${overseer ? overseer.sex : '—'} × 0.5)`);
         lines.push(`  民众贡献: ${pf(popC)} (avg(sex)/2=${pf(avg('sex') * 0.5)} + 基数${pf(2 * n)})`);
-        lines.push(`  基础(bpop): ${pf(overseerC + popC)} + 额外(epop): ${pf(cur.epop || 0)} = ${pf(cur.pop)}`);
+        if (cur.apop) lines.push(`  累计(apop): ${pf(cur.apop)}`);
+        lines.push(`  = ${pf(cur.pop)} (bpop:${pf(overseerC + popC)} + epop:${pf(cur.epop || 0)}${cur.apop ? ' + apop:' + pf(cur.apop) : ''})`);
         lines.push(`  <span style="color:#888;">— 场上角色: ${alive.length} 人，不可用: ${aliveUnavailable.length} 人，总计: ${n} 人 —</span>`);
     } else if (key === 'mil') {
         const empC = emp ? (emp.psq + emp.con) * 0.25 : 0;
@@ -407,7 +470,8 @@ function showOrgBreakdown(key) {
         lines.push(`  将军贡献: ${pf(generalC)} (psq+con=${general ? general.psq + general.con : '—'} × 0.25)`);
         lines.push(`  民众贡献: ${pf(popC)} (avg(psq)=${pf(avg('psq'))} × ${pf(muln)})`);
         lines.push(`  士兵数: ${pf(n_mil)}`);
-        lines.push(`  基础(bmil): ${pf(empC + generalC + popC + n_mil)} + 额外(emil): ${pf(cur.emil || 0)} = ${pf(cur.mil)}`);
+        if (cur.amil) lines.push(`  累计(amil): ${pf(cur.amil)}`);
+        lines.push(`  = ${pf(cur.mil)} (bmil:${pf(empC + generalC + popC + n_mil)} + emil:${pf(cur.emil || 0)}${cur.amil ? ' + amil:' + pf(cur.amil) : ''})`);
     } else if (key === 'inf') {
         const prodC = 0.2 * (cur.tec + cur.cul + cur.prd + cur.pop + cur.mil);
         const empC = emp ? 0.7 * emp.con : 0;
@@ -419,14 +483,16 @@ function showOrgBreakdown(key) {
         lines.push(`  皇帝贡献: ${pf(empC)} (con=${emp ? emp.con : '—'} × 0.7)`);
         lines.push(`  重臣贡献: ${pf(ministerC)} (${ministers.map(r => `${r.name}:${r.con}`).join('+')} × 0.125)`);
         lines.push(`  银库贡献: ${pf(treC)} (tre=${pf(cur.tre)} × 1/7)`);
-        lines.push(`  基础(binf): ${pf(prodC + empC + ministerC + treC)} + 额外(einf): ${pf(cur.einf || 0)} = ${pf(cur.inf)}`);
+        if (cur.ainf) lines.push(`  累计(ainf): ${pf(cur.ainf)}`);
+        lines.push(`  = ${pf(cur.inf)} (binf:${pf(prodC + empC + ministerC + treC)} + einf:${pf(cur.einf || 0)}${cur.ainf ? ' + ainf:' + pf(cur.ainf) : ''})`);
     } else if (key === 'apo') {
         const empC = emp ? emp.cal : 0;
         const popC = avg('cal') * (0.2 + n / 10);
         lines.push(`天灾 = 皇帝灾厄 + 民众平均灾厄×(0.2+人数/10)`);
         lines.push(`  皇帝贡献: ${pf(empC)} (cal=${emp ? emp.cal : '—'})`);
         lines.push(`  民众贡献: ${pf(popC)} (avg(cal)=${pf(avg('cal'))} × ${pf(0.2 + n / 10)})`);
-        lines.push(`  基础(bapo): ${pf(empC + popC)} + 额外(eapo): ${pf(cur.eapo || 0)} = ${pf(cur.apo)}`);
+        if (cur.aapo) lines.push(`  累计(aapo): ${pf(cur.aapo)}`);
+        lines.push(`  = ${pf(cur.apo)} (bapo:${pf(empC + popC)} + eapo:${pf(cur.eapo || 0)}${cur.aapo ? ' + aapo:' + pf(cur.aapo) : ''})`);
     } else if (key === 'mdt') {
         const penalty = G.mdtPenalty || 0;
         const base = 500 - penalty;
@@ -448,7 +514,11 @@ function closeOrgBreakdown() {
 
 function fmt(v) {
     if (Number.isInteger(v)) return v.toString();
-    return v.toFixed(1);
+    // 向下取整到0.1的倍数并格式化为字符串
+    return (Math.floor(v * 10) / 10).toString();
+}
+function floorToTenthStr(v) {
+    return fmt(v);
 }
 
 // ---- Character Creation ----
@@ -500,6 +570,7 @@ function createChar() {
         lifeEvents: []
     };
     c.cal = Math.max(0, Math.round((25 - c.luc / 5) * 3) - d(10, 2));
+    if (c.cal > 30) c.cal = Math.max(0, c.cal - d(4, 5));
     return c;
 }
 
@@ -518,13 +589,135 @@ const _imperialSurnames = ['张','王','李','白','刘','房','尹','曹','孙'
 const _maleGiven = ['伟','强','明','洋','浩','磊','勇','杰','涛','波','斌','超','刚','兵','凯'];
 const _femaleGiven = ['芳','娟','婷','敏','静','丽','雪','燕','琳','倩','薇','悦','雅','蝶','瑶'];
 
-function _randName(c) {
-    const surname = _surnames[Math.floor(Math.random() * _surnames.length)];
-    const givenPool = c.gender === 'm' ? _maleGiven : _femaleGiven;
-    const given = givenPool[Math.floor(Math.random() * givenPool.length)];
+// ---- 扩展的姓名池 ----
+// 新增更多常见姓氏
+const MORE_SURNAMES = ['林','黄','何','梁','宋','郑','谢','韩','唐','冯','董','萧','程','曹','袁','邓','许','傅','沈','曾','彭','吕','苏','卢','蒋','蔡','贾','丁','魏','薛','叶','阎','余','潘'];
+const ALL_SURNAMES = _surnames.concat(MORE_SURNAMES);
+
+// 扩展的男性名字（包括双字名选项）
+const MORE_MALE_GIVEN = [
+    // 单字名
+    '龙','海','峰','宇','平','亮','忠','健','翔','飞','鸣','辉','成','德',
+    '文','武','荣','松','彬','东','南','西','北','山','川','林','江','河',
+    // 可以用于双字名的第二个字
+    '轩','辰','然','豪','乐','诚','睿','哲','瑞','皓','煜','焱','鑫'
+];
+const MALE_GIVEN_FIRST = [
+    // 可用于双字名的第一个字
+    '子','天','文','云','晨','俊','浩','昊','嘉','博','彦','泽','思','雨',
+    '家','建','振','志','宏','永','昌','世','光','明','国','庆','建','军'
+];
+const ALL_MALE_GIVEN = _maleGiven.concat(MORE_MALE_GIVEN);
+
+// 扩展的女性名字（包括双字名选项）
+const MORE_FEMALE_GIVEN = [
+    // 单字名
+    '美','慧','淑','珍','英','玉','萍','红','梅','兰','竹','菊','丹','莉',
+    '霞','云','彩','凤','娥','莹','秀','华','莲','荷','杏','桃','香','芬',
+    // 可以用于双字名的第二个字
+    '妍','嫣','妮','娜','妃','媛','婷','怡','昕','茹','琳','瑶','琪','颖'
+];
+const FEMALE_GIVEN_FIRST = [
+    // 可用于双字名的第一个字
+    '雅','梦','诗','思','雨','晓','小','若','如','可','安','乐','欣','怡',
+    '嘉','佳','美','丽','淑','婉','秀','文','静','清','玉','雪','彩','云'
+];
+const ALL_FEMALE_GIVEN = _femaleGiven.concat(MORE_FEMALE_GIVEN);
+
+// ---- 新的随机名字生成函数 ----
+// 支持生成三字名字（一姓+2名）的概率控制
+function generateRandomName(c, useThreeCharNameProbability = 0.3) {
+    // 随机选择姓氏
+    const surname = ALL_SURNAMES[Math.floor(Math.random() * ALL_SURNAMES.length)];
+    
+    // 确定性别对应的名字池
+    const isMale = c.gender === 'm';
+    const givenFirstPool = isMale ? MALE_GIVEN_FIRST : FEMALE_GIVEN_FIRST;
+    const givenSecondPool = isMale ? ALL_MALE_GIVEN : ALL_FEMALE_GIVEN;
+    
+    let givenname = '';
+    let middlename = '';
+    let fullGiven = '';
+    
+    // 决定是否生成三字名
+    if (Math.random() < useThreeCharNameProbability && givenFirstPool.length > 0) {
+        // 生成三字名：姓 + 第一个字 + 第二个字
+        const first = givenFirstPool[Math.floor(Math.random() * givenFirstPool.length)];
+        const second = givenSecondPool[Math.floor(Math.random() * givenSecondPool.length)];
+        middlename = first;
+        givenname = second;
+        fullGiven = first + second;
+    } else {
+        // 生成两字名：姓 + 名
+        givenname = givenSecondPool[Math.floor(Math.random() * givenSecondPool.length)];
+        fullGiven = givenname;
+    }
+    
     c.surname = surname;
-    c.givenname = given;
-    c.name = surname + given;
+    c.givenname = givenname;
+    c.middlename = middlename;
+    c.name = surname + fullGiven;
+}
+
+// 替换原来的 _randName 函数为增强版
+function _randName(c) {
+    return generateRandomName(c, 0.3); // 30%概率生成三字名
+}
+
+function showNameInputOverlay(title, currentName, gender, onConfirm) {
+    const overlay = document.createElement('div');
+    overlay.id = 'nameInputOverlay';
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;';
+    const win = document.createElement('div');
+    win.style.cssText = 'background:#fff;padding:24px;border-radius:10px;min-width:280px;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,0.3);';
+    const titleEl = document.createElement('div');
+    titleEl.textContent = title;
+    titleEl.style.cssText = 'font-size:18px;font-weight:bold;margin-bottom:16px;color:#333;';
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = currentName;
+    input.style.cssText = 'width:200px;padding:8px;font-size:16px;margin-bottom:12px;border:1px solid #ccc;border-radius:4px;text-align:center;';
+    const btnRow = document.createElement('div');
+    btnRow.style.cssText = 'display:flex;justify-content:center;gap:10px;';
+    const randomBtn = document.createElement('button');
+    randomBtn.textContent = '随机取名';
+    randomBtn.style.cssText = 'padding:6px 14px;font-size:14px;cursor:pointer;border:1px solid #999;border-radius:4px;background:#f0f0f0;';
+    randomBtn.onclick = () => {
+        const pool = gender === 'f' ? ALL_FEMALE_GIVEN : ALL_MALE_GIVEN;
+        input.value = pool[Math.floor(Math.random() * pool.length)];
+    };
+    const confirmBtn = document.createElement('button');
+    confirmBtn.textContent = '确定';
+    confirmBtn.style.cssText = 'padding:6px 14px;font-size:14px;cursor:pointer;border:1px solid #4a90d9;border-radius:4px;background:#4a90d9;color:#fff;';
+    confirmBtn.onclick = () => {
+        overlay.remove();
+        onConfirm(input.value.trim() || currentName);
+    };
+    btnRow.appendChild(randomBtn);
+    btnRow.appendChild(confirmBtn);
+    win.appendChild(titleEl);
+    win.appendChild(input);
+    win.appendChild(btnRow);
+    overlay.appendChild(win);
+    document.body.appendChild(overlay);
+    setTimeout(() => input.focus(), 100);
+}
+
+// 添加一个专用函数用于生成特殊名字（如皇帝、历史人物等）
+function generateSpecialName(c, type = 'normal') {
+    switch (type) {
+        case 'emperor':
+            // 皇帝可以使用更庄重的名字，提高三字名概率
+            return generateRandomName(c, 0.5);
+        case 'historical':
+            // 历史人物使用中等概率的三字名
+            return generateRandomName(c, 0.4);
+        case 'talent':
+            // 人才市场角色使用标准概率
+            return generateRandomName(c, 0.3);
+        default:
+            return generateRandomName(c, 0.3);
+    }
 }
 
 function generateSpouse(level, suitor, dateType) {
@@ -583,7 +776,7 @@ function generateSpouse(level, suitor, dateType) {
 
 // ---- Childbirth ----
 
-const CHILDBIRTH_TIER_LABELS = { a:'配偶/正宫', b:'情人/侧室', c:'大臣/军工/无业/休养', d:'普侍/近亲', e:'后代' };
+const CHILDBIRTH_TIER_LABELS = { a:'配偶/正宫', b:'情人/后宫', c:'大臣/军工/无业/休养', d:'普侍/近亲', e:'后代' };
 const CHILDBIRTH_TIER_MOD = { a: 20, b: 10, c: 0, d: -10, e: -20 };
 
 function isDescendant(c1, c2) {
@@ -607,7 +800,6 @@ function tierForChildbirth(emp, partner) {
     if (partner.id === emp.id) return 'e';
     if (isDescendant(emp, partner)) return 'e';
     if (partner.profession === '正宫' || partner.spouseId === emp.id) return 'a';
-    if (partner.profession === '侧室') return 'b';
     if (partner.lovers && partner.lovers.includes(emp.id)) return 'b';
     if (isCloseRelative(emp, partner)) return 'd';
     if (['宰相','监工','将军','士兵','劳工','学者','艺人','无业者','休养者'].includes(partner.profession)) return 'c';
@@ -653,7 +845,7 @@ function generateChild(father, mother, tier, r) {
             calcCon = () => Math.floor(((emp.con||0) + (partner.con||0)) / 8);
             break;
         case 'b':
-            calcXxx = (stat) => higher(stat)[stat];
+            calcXxx = (stat) => Math.floor(higher(stat)[stat] / 15);
             calcHel = () => higher('hel')['hel'];
             calcCon = () => Math.floor((emp.con||0) / 12);
             break;
@@ -663,7 +855,7 @@ function generateChild(father, mother, tier, r) {
             calcCon = () => Math.floor((emp.con||0) / 20);
             break;
         case 'd':
-            calcXxx = (stat) => lower(stat)[stat];
+            calcXxx = (stat) => Math.floor(lower(stat)[stat] / 15);
             calcHel = () => lower('hel')['hel'];
             calcCon = () => Math.floor((emp.con||0) / 10);
             break;
@@ -691,6 +883,7 @@ function generateChild(father, mother, tier, r) {
 
     if (father.id === G.leaderId || mother.id === G.leaderId) {
         child.profession = '无业者';
+        child._class = '储君';
     }
 
     logLifeEvent(child, 'entry', '出生，父' + father.name + '母' + mother.name);
@@ -795,22 +988,36 @@ function executeChildbirth(c, t) {
     let msg = '';
     if (r >= 1) {
         const child = generateChild(c, t, tier, r);
-        G.chars.push(child);
-        msg = `<span class="success">[生育]</span> ${c.name} 与 ${t.name}（${tierName}）成功诞下 ${child.name}！`;
-        if (effectStr) msg += `<br><span class="stat-change">[损耗]</span>${effectStr}`;
-        addLog(msg);
-        logLifeEvent(c, 'childbirth', '与' + t.name + '生下' + child.name);
-        logLifeEvent(t, 'childbirth', '与' + c.name + '生下' + child.name);
-        updateOrganization();
-        renderCharList();
-        renderGame();
+        const doBirthPush = (newName) => {
+            if (newName) {
+                child.givenname = newName;
+                child.name = child.surname + child.givenname;
+            }
+            G.chars.push(child);
+            msg = `<span class="success">[生育]</span> ${c.name} 与 ${t.name}（${tierName}）成功诞下 ${child.name}！`;
+            if (effectStr) msg += `<br><span class="stat-change">[损耗]</span>${effectStr}`;
+            addLog(msg);
+            logLifeEvent(c, 'childbirth', '与' + t.name + '生下' + child.name);
+            logLifeEvent(t, 'childbirth', '与' + c.name + '生下' + child.name);
+            updateOrganization();
+            renderCharList();
+            renderGame();
+            showActionResult(msg);
+            finalizeCharAction(c);
+        };
+        if (c.id === G.leaderId || t.id === G.leaderId) {
+            showNameInputOverlay('为新生儿命名', child.givenname, child.gender, doBirthPush);
+            return;
+        } else {
+            doBirthPush(null);
+        }
     } else {
         msg = `<span class="fail">[生育]</span> ${c.name} 与 ${t.name}（${tierName}）未能成功生育。`;
         if (effectStr) msg += `<br><span class="stat-change">[损耗]</span>${effectStr}`;
         addLog(msg);
+        showActionResult(msg);
+        finalizeCharAction(c);
     }
-    showActionResult(msg);
-    finalizeCharAction(c);
 }
 
 function needsChildbirthType(actionId) {
@@ -880,9 +1087,11 @@ function executeExile(c, target, pct, amount) {
     }
     G.mdtPenalty = (G.mdtPenalty || 0) + pct;
     target.exitStatus = 'exiled';
+    delete target._class;
     target.exitYear = G.time;
     if (target.entryAge === undefined) target.entryAge = target.age;
     logLifeEvent(target, 'exit', '被' + c.name + '流放');
+    logFamilyExitEvent(target, '被' + c.name + '流放');
     logLifeEvent(c, 'exile', '流放了' + target.name + '，取走' + pct + '%财产');
     const idx = G.chars.indexOf(target);
     if (idx >= 0) G.chars.splice(idx, 1);
@@ -891,7 +1100,7 @@ function executeExile(c, target, pct, amount) {
     addLog(`<span class="log-death">[流放]</span> ${c.name} 流放了 ${target.name}，取走${pct}%财产（${amount}财），天命-${pct}。`);
     updateOrganization();
     showActionResult(`<span class="fail">[流放]</span> ${target.name} 被流放，取走${pct}%财产（${amount}财），天命-${pct}。`);
-    finalizeCharAction(c);
+    updateUIAfterAction(c);
 }
 
 function showKillTargets(c) {
@@ -945,7 +1154,7 @@ function showSummonTargets(c) {
     const prompt = document.getElementById('actionPrompt');
     const btnContainer = document.getElementById('actionBtns');
     btnContainer.innerHTML = '';
-    const targets = G.unavailableChars || [];
+    const targets = (G.unavailableChars || []).filter(c => c.exitStatus);
     if (targets.length === 0) {
         prompt.textContent = '没有可召见的对象。';
         const back = document.createElement('button');
@@ -957,7 +1166,7 @@ function showSummonTargets(c) {
     prompt.textContent = `${c.name}: 选择要召见的不可用角色（灾厄+1d4）：`;
     targets.forEach(t => {
         const btn = document.createElement('button');
-        const status = t.exitStatus === 'natural' ? '已故' : t.exitStatus === 'exiled' ? '流放' : '未觉醒';
+        const status = t.exitStatus === 'natural' ? '已故' : t.exitStatus === 'exiled' ? '流放' : '隐退';
         btn.textContent = `${t.name} (${status})`;
         btn.addEventListener('click', () => {
             executeSummon(c, t);
@@ -997,7 +1206,7 @@ function executeRetire(c) {
     addLog(`<span class="info">[隐退]</span> ${c.name} 选择了隐退。`);
     updateOrganization();
     showActionResult(`<span class="success">[隐退]</span> ${c.name} 隐退。`);
-    finalizeCharAction(c);
+    updateUIAfterAction(c);
 }
 
 function showAppointHeirTargets(c) {
@@ -1142,24 +1351,24 @@ function exercise(c) {
         const p = Math.max(0, d(4) - 1);
         c.psq += p; c.exp += 1;
         msg = `<span class="fail">[失败]</span> 锻炼过度，体格+${p} 经+1`;
-    } else if (r === 1) {
+    } else     if (r === 1) {
         const p = d(4);
         c.psq += p; c.sta += 1; c.exp += 1;
-        msg = `<span class="success">[成功]</span> 锻炼有效（体魄+${p} 体力+1 经+1）`;
+        msg = `<span class="success">[成功]</span> 锻炼有效（体+${p} 劳+1 经+1）`;
     } else if (r === 2) {
         const p = d(4, 2), st = d(4), x = d(4);
         c.psq += p; c.sta += st; c.sex += 1; c.exp += x;
-        msg = `<span class="great">[大成功]</span> 锻炼有成（体魄+${p} 体力+${st} 性+1 经+${x}）`;
+        msg = `<span class="great">[大成功]</span> 锻炼有成（体+${p} 劳+${st} 性+1 经+${x}）`;
     } else {
         const p = d(6, 2), st = d(6), x = d(6), s = d(4);
         c.psq += p; c.sta += st; c.exp += x; c.sex += s;
-        msg = `<span class="extreme">[超常]</span> 锻炼大成（体魄+${p} 体力+${st} 经+${x} 性+${s}）`;
+        msg = `<span class="extreme">[超常]</span> 锻炼大成（体+${p} 劳+${st} 经+${x} 性+${s}）`;
     }
 
     if (c.history.exercise > 0 && c.history.exercise % 5 === 0) {
         const p = d(6), x = d(4), st = d(4), s = d(8);
         c.psq += p; c.exp += x; c.sta += st; c.sex += s;
-        msg += `<br><span class="great">[里程碑]</span> 累计锻炼${c.history.exercise}年！体魄+${p} 经+${x} 体力+${st} 性+${s}`;
+        msg += `<br><span class="great">[里程碑]</span> 累计锻炼${c.history.exercise}年！体+${p} 经+${x} 劳+${st} 性+${s}`;
     }
 
     return msg;
@@ -1448,8 +1657,8 @@ function executePursue(c, t) {
     let msg = `<span class="stat-change">[花费]</span> 转赠${actual}财富给${t.name}。`;
     if (wins >= 3) {
         c.lovers.push(t.id);
-        t.profession = '侧室';
-        msg += `<br><span class="success">[成功]</span> 追求${t.name}成功！${t.name}成为情人（侧室）。`;
+        t.lovers.push(c.id);
+        msg += `<br><span class="success">[成功]</span> 追求${t.name}成功！${t.name}成为情人。`;
         addLog(`${c.name} 成功追求 ${t.name}。`);
     } else {
         const chLoss = d(4);
@@ -1681,12 +1890,17 @@ function generateSpecialTalent() {
     c.sex = d(12, 10);
     c.psq = d(12, 10);
     c.con = d(12, 10);
+    const _statKeys = ['int','cha','sta','sex','psq','con'];
+    const _sorted = _statKeys.map(k => ({key:k,val:c[k]})).sort((a,b) => b.val - a.val);
+    const _top2 = new Set(_sorted.slice(0,2).map(s => s.key));
+    _statKeys.forEach(k => { if (!_top2.has(k)) c[k] = Math.max(0, c[k] - (2 + d(6,3))); });
     c.age = d(20, 3);
     c.hel = c.age + d(20, 5);
     c.edu = d(20, 6);
     c.exp = d(20, 6);
     c.luc = d(20, 5);
     c.cal = Math.max(0, Math.round((25 - c.luc / 5) * 3));
+    if (c.cal > 30) c.cal = Math.max(0, c.cal - d(4, 5));
     c.wel = 0;
     _randName(c);
     c._price = 35;
@@ -1741,7 +1955,7 @@ function renderTalentMarket() {
                 <div class="talent-stats">
                     <span>智${t.int}</span> <span>魅${t.cha}</span>
                     <span>体${t.sta}</span> <span>性${t.sex}</span>
-                    <span>寿${t.hel}</span> <span>教${t.edu}</span>
+                    <span>体魄${t.psq}</span> <span>魄${t.con}</span>
                 </div>
                 <div class="talent-price">${t._price}财</div>
                 <button class="talent-buy-btn" ${canBuy ? '' : 'disabled'}>
@@ -1753,6 +1967,7 @@ function renderTalentMarket() {
                     if (!payFromTreasury(t._price, leader)) return;
                     t.luc = d(20, 5);
                     t.cal = Math.round((25 - t.luc / 5) * 3);
+                    if (t.cal > 30) t.cal = Math.max(0, t.cal - d(4, 5));
                     t.wel = Math.floor(t._price * 3 / 4);
                     t._purchased = true;
                     t._isTalent = true;
@@ -1969,6 +2184,7 @@ function generateBountyCharacter(bounty) {
     c.wel = 0;
     c.luc = d(20, 5);
     c.cal = Math.max(0, Math.round((25 - c.luc / 5) * 3));
+    if (c.cal > 30) c.cal = Math.max(0, c.cal - d(4, 5));
     c._isTalent = true;
     c._actedThisYear = true;
     _randName(c);
@@ -2072,6 +2288,17 @@ function showExploitPercentages(c, target) {
 function showTransferTargets(c) {
     const prompt = document.getElementById('actionPrompt');
     const btnContainer = document.getElementById('actionBtns');
+
+    if ((c.wel || 0) < 5) {
+        prompt.textContent = `${c.name}: 财富不足5，无法转赠。`;
+        btnContainer.innerHTML = '';
+        const backBtn = document.createElement('button');
+        backBtn.textContent = '返回';
+        backBtn.addEventListener('click', () => selectChar(c.id));
+        btnContainer.appendChild(backBtn);
+        return;
+    }
+
     const targets = G.chars.filter(t => t.id !== c.id && !t.isDead);
 
     if (targets.length === 0) {
@@ -2170,7 +2397,6 @@ function showAppointMenu(c) {
 
     const professions = [
         { id: '正宫', label: '正宫', filter: t => t.id !== c.id && !t.isDead && t.gender !== c.gender, note: t => G.chars.find(x => x.profession === '正宫') ? `当前:${G.chars.find(x => x.profession === '正宫').name}` : '' },
-        { id: '侧室', label: '侧室', filter: t => t.id !== c.id && !t.isDead && t.gender !== c.gender },
         { id: '宰相', label: '宰相', filter: t => {
             if (t.id === c.id || t.isDead) return false;
             const emp = G.chars.find(x => x.id === G.leaderId);
@@ -2259,8 +2485,26 @@ function appointChancellor(c, t) {
 
 function appointSimple(c, t, prof) {
     const MINISTER_PROFS = ['监工', '将军'];
+    // Single office-holder check for ministers
+    if (MINISTER_PROFS.includes(prof)) {
+        const old = G.chars.find(x => x.profession === prof);
+        if (old && old.id !== t.id) {
+            // Demote old to appropriate profession
+            const demoteTo = prof === '将军' ? '士兵' : '劳工';
+            old.profession = demoteTo;
+            logLifeEvent(old, 'demote', `被免去${prof}之位`);
+            addLog(`<span class="info">[${prof}]</span> ${old.name} 被降为${demoteTo}。`);
+        }
+        logLifeEvent(t, 'appoint', '被任命为' + prof);
+    }
+    
+    // 如果指派为普侍，mdt基础-10
+    if (prof === '普侍') {
+        G.mdtPenalty = (G.mdtPenalty || 0) + 10;
+        addLog(`<span class="info">[天命]</span> 任命普侍，天命基础-10。`);
+    }
+    
     t.profession = prof;
-    if (MINISTER_PROFS.includes(prof)) logLifeEvent(t, 'appoint', '被任命为' + prof);
     return `<span class="success">[任命]</span> ${c.name} 指定 ${t.name} 为${prof}。`;
 }
 
@@ -2338,6 +2582,987 @@ function elderlyCare(c) {
 function nothing(c) {
     resetLearningStreaks(c);
     return `<span class="info">[虚度]</span> 又浪费了一年！`;
+}
+
+function showGovernOptions(c) {
+    const prompt = document.getElementById('actionPrompt');
+    const btnContainer = document.getElementById('actionBtns');
+    const treasury = G.organization.current.btre;
+    
+    if (treasury < 20) {
+        prompt.textContent = '国库余额不足20，无法发动理政。';
+        btnContainer.innerHTML = '<button onclick="document.getElementById(\'actionPrompt\').textContent = \'点击一个角色来执行行动\'">返回</button>';
+        return;
+    }
+    
+    // 获取国家科技和文化值
+    const stateTech = G.organization.current.tec;
+    const stateCulture = G.organization.current.cul;
+    
+    // 决定显示哪些选项
+    let showTech = false;
+    let showCulture = false;
+    
+    if (c.int > c.cha) {
+        // 宰相智力 > 魅力：默认显示科技
+        showTech = true;
+        // 如果国家文化 > 科技，也显示文化
+        showCulture = stateCulture > stateTech;
+    } else if (c.cha > c.int) {
+        // 宰相魅力 > 智力：默认显示文化
+        showCulture = true;
+        // 如果国家科技 > 文化，也显示科技
+        showTech = stateTech > stateCulture;
+    } else {
+        // 宰相智力 = 魅力：两个都显示
+        showTech = true;
+        showCulture = true;
+    }
+    
+    let promptText = `${c.name}: 选择提升类型`;
+    if (c.int > c.cha) {
+        promptText += `（宰相智力${c.int} > 魅力${c.cha}`;
+        if (stateCulture > stateTech) promptText += `，但国家文化${fmt(stateCulture)} > 科技${fmt(stateTech)}`;
+        promptText += '）';
+    } else if (c.cha > c.int) {
+        promptText += `（宰相魅力${c.cha} > 智力${c.int}`;
+        if (stateTech > stateCulture) promptText += `，但国家科技${fmt(stateTech)} > 文化${fmt(stateCulture)}`;
+        promptText += '）';
+    } else {
+        promptText += `（宰相智力${c.int} = 魅力${c.cha}）`;
+    }
+    
+    prompt.textContent = promptText;
+    btnContainer.innerHTML = '';
+    
+    if (showTech) {
+        const techBtn = document.createElement('button');
+        techBtn.textContent = `提升科技 (智力: ${c.int})`;
+        techBtn.onclick = () => {
+            const result = executeGovern(c, 'tech');
+            showActionResult(result);
+            finalizeCharAction(c);
+        };
+        btnContainer.appendChild(techBtn);
+    }
+    
+    if (showCulture) {
+        const cultureBtn = document.createElement('button');
+        cultureBtn.textContent = `提升文化 (魅力: ${c.cha})`;
+        cultureBtn.onclick = () => {
+            const result = executeGovern(c, 'culture');
+            showActionResult(result);
+            finalizeCharAction(c);
+        };
+        btnContainer.appendChild(cultureBtn);
+    }
+    
+    // 如果两个选项都不显示（理论上不会发生）
+    if (!showTech && !showCulture) {
+        prompt.textContent = '没有可用的提升选项。';
+    }
+    
+    const cancelBtn = document.createElement('button');
+    cancelBtn.textContent = '取消';
+    cancelBtn.onclick = () => {
+        document.getElementById('actionPrompt').textContent = '点击一个角色来执行行动';
+        document.getElementById('actionBtns').innerHTML = '';
+    };
+    btnContainer.appendChild(cancelBtn);
+}
+
+function executeGovern(c, type) {
+    resetLearningStreaks(c);
+    c.history.govern = (c.history.govern || 0) + 1;
+    
+    const treasury = G.organization.current.btre;
+    if (treasury < 20) {
+        return `<span class="fail">[失败]</span> 国库余额不足20，无法发动理政。`;
+    }
+    
+    // 花费国库5d4
+    const cost = d(4, 5);
+    if (cost > treasury) {
+        return `<span class="fail">[失败]</span> 国库余额不足${cost}，无法发动理政。`;
+    }
+    
+    G.organization.current.btre -= cost;
+    const duration = 2 + d(6);
+    const endYear = G.time + duration;
+    
+    let msg = '';
+    if (type === 'tech') {
+        // 提升科技
+        G.organization.current.atec = (G.organization.current.atec || 0) + cost;
+        if (!G._governEffects) G._governEffects = [];
+        G._governEffects.push({ type: 'tech', amount: cost, endYear });
+        const scholars = G.chars.filter(x => !x.isDead && x.profession === '学者');
+        scholars.forEach(s => s.int += d(4));
+        msg = `<span class="success">[理政]</span> ${c.name} 提升科技，花费国库${cost}，科技提升${cost}（持续${duration}年），所有学者智力+1d4`;
+    } else {
+        // 提升文化
+        G.organization.current.acul = (G.organization.current.acul || 0) + cost;
+        if (!G._governEffects) G._governEffects = [];
+        G._governEffects.push({ type: 'culture', amount: cost, endYear });
+        const artists = G.chars.filter(x => !x.isDead && x.profession === '艺人');
+        artists.forEach(a => a.cha += d(4));
+        msg = `<span class="success">[理政]</span> ${c.name} 提升文化，花费国库${cost}，文化提升${cost}（持续${duration}年），所有艺人魅力+1d4`;
+    }
+    
+    return msg;
+}
+
+function showSqueezeOptions(c) {
+    const prompt = document.getElementById('actionPrompt');
+    const btnContainer = document.getElementById('actionBtns');
+    const treasury = G.organization.current.btre;
+
+    if (treasury < 20) {
+        prompt.textContent = '国库余额不足20，无法发动压榨。';
+        btnContainer.innerHTML = '<button onclick="document.getElementById(\'actionPrompt\').textContent = \'点击一个角色来执行行动\'; document.getElementById(\'actionBtns\').innerHTML = \'\'">返回</button>';
+        return;
+    }
+
+    const cur = G.organization.current;
+    const prd = cur.prd || 0;
+    const pop = cur.pop || 0;
+    const pushiCount = G.chars.filter(x => !x.isDead && x.profession === '普侍').length;
+    const laborCount = G.chars.filter(x => !x.isDead && x.profession === '劳工').length;
+
+    let showPrd = false;
+    let showPop = false;
+
+    if (prd > pop) {
+        showPrd = true;
+        if (pushiCount > laborCount) showPop = true;
+    } else if (pop > prd) {
+        showPop = true;
+        if (laborCount > pushiCount) showPrd = true;
+    } else {
+        showPrd = true;
+        showPop = true;
+    }
+
+    prompt.textContent = `${c.name}: 选择压榨类型`;
+    btnContainer.innerHTML = '';
+
+    if (showPrd) {
+        const btn = document.createElement('button');
+        btn.textContent = `提升生产 (生产${fmt(prd)} > 人口${fmt(pop)})`;
+        btn.onclick = () => {
+            const result = executeSqueeze(c, 'prd');
+            showActionResult(result);
+            finalizeCharAction(c);
+        };
+        btnContainer.appendChild(btn);
+    }
+
+    if (showPop) {
+        const btn = document.createElement('button');
+        btn.textContent = `提升人口 (人口${fmt(pop)}${showPrd ? `，普侍${pushiCount} > 劳工${laborCount}` : ` > 生产${fmt(prd)}`})`;
+        btn.onclick = () => {
+            const result = executeSqueeze(c, 'pop');
+            showActionResult(result);
+            finalizeCharAction(c);
+        };
+        btnContainer.appendChild(btn);
+    }
+
+    if (!showPrd && !showPop) {
+        prompt.textContent = '没有可用的压榨选项。';
+    }
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.textContent = '取消';
+    cancelBtn.onclick = () => {
+        document.getElementById('actionPrompt').textContent = '点击一个角色来执行行动';
+        document.getElementById('actionBtns').innerHTML = '';
+    };
+    btnContainer.appendChild(cancelBtn);
+}
+
+function executeSqueeze(c, type) {
+    resetLearningStreaks(c);
+    c.history.squeeze = (c.history.squeeze || 0) + 1;
+
+    const treasury = G.organization.current.btre;
+    if (treasury < 20) {
+        return `<span class="fail">[失败]</span> 国库余额不足20，无法发动压榨。`;
+    }
+
+    const cost = d(4, 5);
+    if (cost > treasury) {
+        return `<span class="fail">[失败]</span> 国库余额不足${cost}，无法发动压榨。`;
+    }
+
+    G.organization.current.btre -= cost;
+    const duration = 2 + d(6);
+    const endYear = G.time + duration;
+
+    let msg = '';
+
+    if (type === 'prd') {
+        G.organization.current.aprd = (G.organization.current.aprd || 0) + cost;
+
+        const laborers = G.chars.filter(x => !x.isDead && x.profession === '劳工');
+        const helLoss = d(4, 2) + 2;
+        const staLoss = d(10, 2);
+        let totalTreasury = 0;
+        laborers.forEach(lab => {
+            lab.hel = Math.max(1, (lab.hel || 0) - helLoss);
+            lab.sta = Math.max(0, (lab.sta || 0) - staLoss);
+            const gain = 2 + d(4, 2);
+            totalTreasury += gain;
+            msg += `<br>&nbsp;&nbsp;${lab.name}: 寿命-${helLoss} 劳-${staLoss} 为国库+${gain}`;
+        });
+        G.organization.current.btre += totalTreasury;
+        msg = `<span class="success">[压榨·生产]</span> ${c.name} 压榨提升生产，花费国库${cost}，生产提升${cost}（持续${duration}年），国库收回${totalTreasury}${msg}`;
+    } else {
+        G.organization.current.apop = (G.organization.current.apop || 0) + cost;
+
+        const pushis = G.chars.filter(x => !x.isDead && x.profession === '普侍');
+        const helLoss = d(4, 2) + 2;
+        const staLoss = d(10, 2);
+        const sexGain = d(6, 3) + 2;
+        let totalCalOverseer = 0;
+        let totalCalEmperor = 0;
+        pushis.forEach(p => {
+            p.hel = Math.max(1, (p.hel || 0) - helLoss);
+            p.sta = Math.max(0, (p.sta || 0) - staLoss);
+            p.sex = (p.sex || 0) + sexGain;
+            const ocGain = d(4, 2);
+            c.cal = (c.cal || 0) + ocGain;
+            totalCalOverseer += ocGain;
+            const empGain = d(4);
+            const emp = G.chars.find(e => e.id === G.leaderId);
+            if (emp) emp.cal = (emp.cal || 0) + empGain;
+            totalCalEmperor += empGain;
+            msg += `<br>&nbsp;&nbsp;${p.name}: 寿命-${helLoss} 劳-${staLoss} 性+${sexGain}`;
+        });
+
+        const mdtLoss = d(4) * 5;
+        G.mdtPenalty = (G.mdtPenalty || 0) + mdtLoss;
+
+        msg = `<span class="success">[压榨·人口]</span> ${c.name} 压榨提升人口，花费国库${cost}，人口提升${cost}（持续${duration}年），天命惩罚+${mdtLoss}，监工灾厄+${totalCalOverseer}，皇帝灾厄+${totalCalEmperor}${msg}`;
+
+        // 随机选一名普侍进行生育检定
+        if (pushis.length > 0) {
+            const chosen = pushis[Math.floor(Math.random() * pushis.length)];
+            const partners = G.chars.filter(x =>
+                !x.isDead && !x.exitStatus &&
+                x.gender !== chosen.gender &&
+                x.id !== chosen.id &&
+                x.age >= 12 && x.age <= 50
+            );
+            if (partners.length > 0) {
+                const partner = partners[Math.floor(Math.random() * partners.length)];
+                const tier = tierForChildbirth(chosen, partner);
+                const mod = CHILDBIRTH_TIER_MOD[tier] || 0;
+                const sexSum = (chosen.sex || 0) + (partner.sex || 0);
+                const target = Math.max(1, sexSum + mod);
+                const r = ch(target);
+                if (r >= 1) {
+                    const child = generateChild(chosen, partner, tier, r);
+                    child._actedThisYear = true;
+                    G.chars.push(child);
+                    msg += `<br>&nbsp;&nbsp;${chosen.name} 与 ${partner.name} 诞下 ${child.name}。`;
+                    if (Math.random() < 0.25) {
+                        handleExit(chosen, 'natural');
+                        msg += `<br>&nbsp;&nbsp;<span class="fail">${chosen.name} 因生育去世。</span>`;
+                    }
+                }
+            }
+        }
+    }
+
+    return msg;
+}
+
+function showDrillOptions(c) {
+    const prompt = document.getElementById('actionPrompt');
+    const btnContainer = document.getElementById('actionBtns');
+    const treasury = G.organization.current.btre;
+
+    if (treasury < 20) {
+        prompt.textContent = '国库余额不足20，无法发动演兵。';
+        btnContainer.innerHTML = '<button onclick="document.getElementById(\'actionPrompt\').textContent = \'点击一个角色来执行行动\'; document.getElementById(\'actionBtns\').innerHTML = \'\'">返回</button>';
+        return;
+    }
+
+    const emp = G.chars.find(e => e.id === G.leaderId);
+    const genPsq = c.psq || 0;
+    const genCon = c.con || 0;
+    const empPsq = emp ? emp.psq || 0 : 0;
+    const empCon = emp ? emp.con || 0 : 0;
+
+    let showExercise = false;
+    let showMobilize = false;
+
+    if (genPsq > genCon) {
+        showExercise = true;
+        if (empCon > empPsq) showMobilize = true;
+    } else if (genCon > genPsq) {
+        showMobilize = true;
+        if (empPsq > empCon) showExercise = true;
+    } else {
+        showExercise = true;
+        showMobilize = true;
+    }
+
+    prompt.textContent = `${c.name}: 选择演兵类型`;
+    btnContainer.innerHTML = '';
+
+    if (showExercise) {
+        const btn = document.createElement('button');
+        btn.textContent = '演习';
+        btn.onclick = () => {
+            const result = executeDrill(c, 'exercise');
+            showActionResult(result);
+            finalizeCharAction(c);
+        };
+        btnContainer.appendChild(btn);
+    }
+
+    if (showMobilize) {
+        const btn = document.createElement('button');
+        btn.textContent = '动员';
+        btn.onclick = () => {
+            const result = executeDrill(c, 'mobilize');
+            showActionResult(result);
+            finalizeCharAction(c);
+        };
+        btnContainer.appendChild(btn);
+    }
+
+    if (!showExercise && !showMobilize) {
+        prompt.textContent = '没有可用的演兵选项。';
+    }
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.textContent = '取消';
+    cancelBtn.onclick = () => {
+        document.getElementById('actionPrompt').textContent = '点击一个角色来执行行动';
+        document.getElementById('actionBtns').innerHTML = '';
+    };
+    btnContainer.appendChild(cancelBtn);
+}
+
+function executeDrill(c, type) {
+    resetLearningStreaks(c);
+    c.history.drill = (c.history.drill || 0) + 1;
+
+    const treasury = G.organization.current.btre;
+    if (treasury < 20) {
+        return `<span class="fail">[失败]</span> 国库余额不足20，无法发动演兵。`;
+    }
+
+    const cost = d(4, 5);
+    if (cost > treasury) {
+        return `<span class="fail">[失败]</span> 国库余额不足${cost}，无法发动演兵。`;
+    }
+
+    G.organization.current.btre -= cost;
+    const duration = 2 + d(6);
+    const endYear = G.time + duration;
+
+    G.organization.current.amil = (G.organization.current.amil || 0) + cost;
+    if (!G._drillEffects) G._drillEffects = [];
+    G._drillEffects.push({ type, amount: cost, endYear });
+
+    const emp = G.chars.find(e => e.id === G.leaderId);
+    const soldiers = G.chars.filter(x => !x.isDead && x.profession === '士兵');
+
+    let msg = '';
+    if (type === 'exercise') {
+        // 将军 and 所有士兵: sta-1d4, psq+1d8, int+1d4, con+2
+        [c, ...soldiers].forEach(ch => {
+            const staLoss = d(4);
+            const psqGain = d(8);
+            const intGain = d(4);
+            const conGain = 2;
+            ch.sta = Math.max(0, (ch.sta || 0) - staLoss);
+            ch.psq = (ch.psq || 0) + psqGain;
+            ch.int = (ch.int || 0) + intGain;
+            ch.con = (ch.con || 0) + conGain;
+        });
+        // 皇帝: con+2d6
+        if (emp) {
+            emp.con = (emp.con || 0) + d(6, 2);
+            msg = `<span class="success">[演兵·演习]</span> ${c.name} 发动演习，花费国库${cost}，军事提升${cost}（持续${duration}年），皇帝魄力+${d(6, 2)}`;
+        }
+    } else {
+        // 动员: 将军 and 所有士兵: cha-1d4, con+3d4, sta+2, psq+1d4, int+2
+        [c, ...soldiers].forEach(ch => {
+            const chaLoss = d(4);
+            const conGain = d(4, 3);
+            const staGain = 2;
+            const psqGain = d(4);
+            const intGain = 2;
+            ch.cha = Math.max(0, (ch.cha || 0) - chaLoss);
+            ch.con = (ch.con || 0) + conGain;
+            ch.sta = (ch.sta || 0) + staGain;
+            ch.psq = (ch.psq || 0) + psqGain;
+            ch.int = (ch.int || 0) + intGain;
+        });
+        // 皇帝: con+1d12
+        if (emp) {
+            emp.con = (emp.con || 0) + d(12);
+            msg = `<span class="success">[演兵·动员]</span> ${c.name} 发动动员，花费国库${cost}，军事提升${cost}（持续${duration}年），皇帝魄力+${d(12)}`;
+        }
+    }
+
+    return msg;
+}
+
+function govern(c) {
+    // 旧版本兼容
+    resetLearningStreaks(c);
+    c.history.govern = (c.history.govern || 0) + 1;
+    const r = ch(c.edu);
+    let msg = '';
+    if (r === 0) {
+        const eduG = d(4);
+        c.edu += eduG;
+        msg = `<span class="fail">[失败]</span> 理政（教+${eduG}）`;
+    } else if (r === 1) {
+        const eduG = d(4), welG = d(4), conG = d(4);
+        c.edu += eduG; c.wel += welG; c.con += conG;
+        msg = `<span class="success">[成功]</span> 理政（教+${eduG} 财+${welG} 魄+${conG}）`;
+    } else if (r === 2) {
+        const eduG = d(6), welG = d(6), conG = d(6), intG = d(4);
+        c.edu += eduG; c.wel += welG; c.con += conG; c.int += intG;
+        G.organization.current.epop += d(4);
+        msg = `<span class="great">[大成功]</span> 理政（教+${eduG} 财+${welG} 魄+${conG} 智+${intG}）`;
+    } else {
+        const eduG = d(8), welG = d(8, 2), conG = d(8), intG = d(6);
+        c.edu += eduG; c.wel += welG; c.con += conG; c.int += intG;
+        G.organization.current.epop += d(6);
+        const emp = G.chars.find(e => e.id === G.leaderId);
+        if (emp && !emp.isDead) emp.wel += d(4);
+        msg = `<span class="extreme">[超常]</span> 理政（教+${eduG} 财+${welG} 魄+${conG} 智+${intG} 人口+增加 帝财+增加）`;
+    }
+    return msg;
+}
+
+function showGovernPolicy(c) {
+    const prompt = document.getElementById('actionPrompt');
+    const btnContainer = document.getElementById('actionBtns');
+    const emp = G.chars.find(e => e.id === G.leaderId);
+    if (!emp || emp.isDead) return;
+
+    prompt.textContent = `${emp.name}: 选择施政项目`;
+    btnContainer.innerHTML = '';
+    const policies = [
+        { id: 'tax', label: '征税' },
+        { id: 'granary', label: '开仓' },
+        { id: 'invest', label: '投资' },
+        { id: 'assassinate', label: '暗杀' }
+    ];
+    policies.forEach(p => {
+        const btn = document.createElement('button');
+        btn.textContent = p.label;
+        btn.addEventListener('click', () => executeGovernPolicy(emp, p.id));
+        btnContainer.appendChild(btn);
+    });
+    const cancelBtn = document.createElement('button');
+    cancelBtn.textContent = '取消';
+    cancelBtn.addEventListener('click', () => {
+        document.getElementById('actionPrompt').textContent = '点击一个角色来执行行动';
+        document.getElementById('actionBtns').innerHTML = '';
+    });
+    btnContainer.appendChild(cancelBtn);
+    labelActionBtns();
+}
+
+function doGovernConCheck(emp) {
+    const HAOQIANG_STATS = ['int','cha','sta','sex','psq','con','wel'];
+    const hqList = G.chars.filter(ch => {
+        if (ch.isDead || ch.exitStatus || ch.id === G.leaderId) return false;
+        let count = 0;
+        HAOQIANG_STATS.forEach(s => { if ((ch[s] || 0) > (emp[s] || 0)) count++; });
+        return count >= 3;
+    });
+    let checkCon = emp.con;
+    if (hqList.length > 0) {
+        const maxHqCon = Math.max(...hqList.map(h => h.con || 0));
+        if (maxHqCon > emp.con) {
+            checkCon = Math.max(0, emp.con * 2 - maxHqCon);
+        }
+    }
+    return ch(checkCon);
+}
+
+function executeGovernPolicy(emp, policyId) {
+    const conR = doGovernConCheck(emp);
+    if (conR === 0) {
+        const msg = `<span class="fail">[失败]</span> 施政检定失败（魄力检定未通过），施政未能执行。`;
+        showActionResult(msg);
+        finalizeCharAction(emp);
+        return;
+    }
+    if (policyId === 'tax') showTaxRateOptions(emp);
+    else if (policyId === 'granary') showGranaryRateOptions(emp);
+    else if (policyId === 'invest') showInvestRateOptions(emp);
+    else if (policyId === 'assassinate') showAssassinateRoleOptions(emp);
+}
+
+function showTaxRateOptions(emp) {
+    const prompt = document.getElementById('actionPrompt');
+    const btnContainer = document.getElementById('actionBtns');
+    prompt.textContent = `${emp.name}: 选择税率`;
+    btnContainer.innerHTML = '';
+    const rates = [10, 25, 50, 80];
+    rates.forEach((rate, i) => {
+        const btn = document.createElement('button');
+        btn.textContent = `${rate}%`;
+        btn.addEventListener('click', () => {
+            const msg = executePolicyTax(emp, i);
+            showActionResult(msg);
+            finalizeCharAction(emp);
+        });
+        btnContainer.appendChild(btn);
+    });
+    const cancelBtn = document.createElement('button');
+    cancelBtn.textContent = '取消';
+    cancelBtn.addEventListener('click', () => showGovernPolicy(emp));
+    btnContainer.appendChild(cancelBtn);
+    labelActionBtns();
+}
+
+function executePolicyTax(emp, rateIndex) {
+    const rates = [10, 25, 50, 80];
+    const rate = rates[rateIndex];
+    const eapoGain = [d(4), d(6), d(10), d(20)][rateIndex];
+    let totalTax = 0;
+    let resistCount = 0;
+    G.chars.forEach(ch => {
+        if (ch.isDead || ch.exitStatus || ch.id === G.leaderId) return;
+        if ((ch.wel || 0) <= 0) return;
+        const tax = Math.floor(ch.wel * rate / 100);
+        if (tax <= 0) return;
+        if ((ch.con || 0) > (emp.con || 0)) {
+            const contest = xch(ch.con, emp.con);
+            if (contest >= 2) { resistCount++; return; }
+        }
+        ch.wel -= tax;
+        totalTax += tax;
+    });
+    G.organization.current.btre += totalTax;
+    G.organization.current.eapo = (G.organization.current.eapo || 0) + eapoGain;
+    G.organization.current.aapo = (G.organization.current.aapo || 0) + eapoGain;
+    const rateLabel = rates[rateIndex];
+    return `征税：税率${rateLabel}%，实收${totalTax}财，${resistCount}人抗税，eapo+${eapoGain}`;
+}
+
+function showGranaryRateOptions(emp) {
+    const prompt = document.getElementById('actionPrompt');
+    const btnContainer = document.getElementById('actionBtns');
+    prompt.textContent = `${emp.name}: 选择开仓比例`;
+    btnContainer.innerHTML = '';
+    const rates = [10, 25, 50, 80];
+    rates.forEach((rate, i) => {
+        const btn = document.createElement('button');
+        btn.textContent = `${rate}%`;
+        btn.addEventListener('click', () => {
+            const msg = executePolicyGranary(emp, i);
+            showActionResult(msg);
+            finalizeCharAction(emp);
+        });
+        btnContainer.appendChild(btn);
+    });
+    const cancelBtn = document.createElement('button');
+    cancelBtn.textContent = '取消';
+    cancelBtn.addEventListener('click', () => showGovernPolicy(emp));
+    btnContainer.appendChild(cancelBtn);
+    labelActionBtns();
+}
+
+function executePolicyGranary(emp, rateIndex) {
+    const rates = [10, 25, 50, 80];
+    const rate = rates[rateIndex];
+    const mdtGain = [d(4), d(6), d(10), d(20)][rateIndex];
+    const treasury = G.organization.current.btre;
+    const allocation = Math.floor(treasury * rate / 100);
+    if (allocation <= 0) {
+        return `<span class="fail">[失败]</span> 国库资金不足，无法开仓。`;
+    }
+    const eligible = G.chars.filter(ch => !ch.isDead && !ch.exitStatus && ch.profession !== '皇帝' && ch.profession !== '贱民');
+    if (eligible.length === 0) {
+        return `<span class="fail">[失败]</span> 没有符合条件的角色。`;
+    }
+    const perCapitaTheory = allocation / eligible.length;
+    let totalPaid = 0;
+    eligible.forEach(ch => {
+        const actualPay = Math.floor(perCapitaTheory);
+        if (actualPay > 0) {
+            ch.wel = (ch.wel || 0) + actualPay;
+            totalPaid += actualPay;
+        }
+    });
+    const leftover = allocation - totalPaid;
+    G.organization.current.btre -= allocation;
+    G.organization.current.btre += leftover;
+    if (totalPaid === 0) {
+        return `<span class="fail">[失败]</span> 实际支付值为0，开仓无效，mdt不获得加成。`;
+    }
+    G.organization.current.bmdt = (G.organization.current.bmdt || 0) + mdtGain;
+    return `开仓：拨款${allocation}财，实际发放${totalPaid}财，回流${leftover}财，mdt+${mdtGain}`;
+}
+
+function showInvestRateOptions(emp) {
+    const prompt = document.getElementById('actionPrompt');
+    const btnContainer = document.getElementById('actionBtns');
+    prompt.textContent = `${emp.name}: 选择投资比例`;
+    btnContainer.innerHTML = '';
+    const rates = [10, 25, 50, 80];
+    rates.forEach((rate, i) => {
+        const btn = document.createElement('button');
+        btn.textContent = `${rate}%`;
+        btn.addEventListener('click', () => showInvestDeptOptions(emp, i));
+        btnContainer.appendChild(btn);
+    });
+    const cancelBtn = document.createElement('button');
+    cancelBtn.textContent = '取消';
+    cancelBtn.addEventListener('click', () => showGovernPolicy(emp));
+    btnContainer.appendChild(cancelBtn);
+    labelActionBtns();
+}
+
+function showInvestDeptOptions(emp, rateIndex) {
+    const prompt = document.getElementById('actionPrompt');
+    const btnContainer = document.getElementById('actionBtns');
+    prompt.textContent = `${emp.name}: 选择投资部门`;
+    btnContainer.innerHTML = '';
+    const depts = [
+        { id: 'tec', label: '科技' },
+        { id: 'cul', label: '文化' },
+        { id: 'prd', label: '生产' },
+        { id: 'pop', label: '人口' },
+        { id: 'mil', label: '军事' }
+    ];
+    depts.forEach(d => {
+        const btn = document.createElement('button');
+        btn.textContent = d.label;
+        btn.addEventListener('click', () => {
+            const msg = executePolicyInvest(emp, rateIndex, d.id);
+            showActionResult(msg);
+            finalizeCharAction(emp);
+        });
+        btnContainer.appendChild(btn);
+    });
+    const cancelBtn = document.createElement('button');
+    cancelBtn.textContent = '取消';
+    cancelBtn.addEventListener('click', () => showInvestRateOptions(emp));
+    btnContainer.appendChild(cancelBtn);
+    labelActionBtns();
+}
+
+function executePolicyInvest(emp, rateIndex, dept) {
+    const rates = [10, 25, 50, 80];
+    const rate = rates[rateIndex];
+    const statGain = [d(4), d(6), d(10), d(20)][rateIndex];
+    const treasury = G.organization.current.btre;
+    const allocation = Math.floor(treasury * rate / 100);
+    if (allocation <= 0) {
+        return `<span class="fail">[失败]</span> 国库资金不足，无法投资。`;
+    }
+    G.organization.current.btre -= allocation;
+    const deptMap = {
+        tec: { stat: 'int', currKey: 'etec', accumKey: 'atec', label: '科技' },
+        cul: { stat: 'cha', currKey: 'ecul', accumKey: 'acul', label: '文化' },
+        prd: { stat: 'sta', currKey: 'eprd', accumKey: 'aprd', label: '生产' },
+        pop: { stat: 'sex', currKey: 'epop', accumKey: 'apop', label: '人口' },
+        mil: { stat: 'psq', currKey: 'emil', accumKey: 'amil', label: '军事' }
+    };
+    const info = deptMap[dept];
+    G.organization.current[info.currKey] = (G.organization.current[info.currKey] || 0) + allocation;
+    G.organization.current[info.accumKey] = (G.organization.current[info.accumKey] || 0) + allocation;
+    if (dept === 'pop') {
+        G.chars.filter(ch => !ch.isDead && !ch.exitStatus && ch.profession !== '皇帝').forEach(ch => {
+            ch[info.stat] = (ch[info.stat] || 0) + statGain;
+        });
+    } else {
+        G.chars.filter(ch => !ch.isDead && !ch.exitStatus && ch.profession !== '皇帝' && ch.profession !== '贱民').forEach(ch => {
+            ch[info.stat] = (ch[info.stat] || 0) + statGain;
+        });
+    }
+    return `投资${info.label}：拨款${allocation}财，${info.label}累计+${allocation}，民众${info.stat}+${statGain}`;
+}
+
+function showAssassinateRoleOptions(emp) {
+    const prompt = document.getElementById('actionPrompt');
+    const btnContainer = document.getElementById('actionBtns');
+    prompt.textContent = `${emp.name}: 选择暗杀执行人`;
+    btnContainer.innerHTML = '';
+    const roles = [
+        { id: 'chancellor', label: '宰相' },
+        { id: 'overseer', label: '监工' },
+        { id: 'general', label: '将军' }
+    ];
+    roles.forEach(r => {
+        const btn = document.createElement('button');
+        btn.textContent = r.label;
+        btn.addEventListener('click', () => showAssassinateTargetOptions(emp, r.id));
+        btnContainer.appendChild(btn);
+    });
+    const cancelBtn = document.createElement('button');
+    cancelBtn.textContent = '取消';
+    cancelBtn.addEventListener('click', () => showGovernPolicy(emp));
+    btnContainer.appendChild(cancelBtn);
+    labelActionBtns();
+}
+
+function showAssassinateTargetOptions(emp, roleId) {
+    const prompt = document.getElementById('actionPrompt');
+    const btnContainer = document.getElementById('actionBtns');
+    prompt.textContent = `${emp.name}: 选择暗杀目标`;
+    btnContainer.innerHTML = '';
+    const targets = G.chars.filter(ch => !ch.isDead && !ch.exitStatus && ch.id !== G.leaderId);
+    if (targets.length === 0) {
+        prompt.textContent = '没有可指定的暗杀目标。';
+        const backBtn = document.createElement('button');
+        backBtn.textContent = '返回';
+        backBtn.addEventListener('click', () => showGovernPolicy(emp));
+        btnContainer.appendChild(backBtn);
+        labelActionBtns();
+        return;
+    }
+    targets.forEach(t => {
+        const btn = document.createElement('button');
+        btn.textContent = `${t.name}（${t.profession}）`;
+        btn.addEventListener('click', () => {
+            const msg = executePolicyAssassinate(emp, roleId, t.id);
+            showActionResult(msg);
+            finalizeCharAction(emp);
+        });
+        btnContainer.appendChild(btn);
+    });
+    const cancelBtn = document.createElement('button');
+    cancelBtn.textContent = '取消';
+    cancelBtn.addEventListener('click', () => showAssassinateRoleOptions(emp));
+    btnContainer.appendChild(cancelBtn);
+    labelActionBtns();
+}
+
+function executePolicyAssassinate(emp, roleId, targetId) {
+    const target = G.chars.find(ch => ch.id === targetId);
+    if (!target) return `<span class="fail">[失败]</span> 暗杀目标不存在。`;
+    const assassin = G.chars.find(ch => {
+        if (ch.isDead || ch.exitStatus || ch.id === G.leaderId) return false;
+        if (roleId === 'chancellor') return ch.profession === '宰相';
+        if (roleId === 'overseer') return ch.profession === '监工';
+        if (roleId === 'general') return ch.profession === '将军';
+        return false;
+    });
+    if (!assassin) return `<span class="fail">[失败]</span> 没有合适的执行人。`;
+    const calCost = d(4);
+    const mdtCost = 2 + d(4, 2);
+    emp.cal = (emp.cal || 0) + calCost;
+    G.organization.current.bmdt = Math.max(0, (G.organization.current.bmdt || 0) - mdtCost);
+    let assassinStat;
+    if (roleId === 'chancellor') assassinStat = Math.max(assassin.int || 0, assassin.cha || 0);
+    else if (roleId === 'overseer') assassinStat = assassin.wel || 0;
+    else assassinStat = assassin.psq || 0;
+    const targetStat = Math.max(target.int || 0, target.cha || 0, target.wel || 0, target.psq || 0);
+    const contest = xch(assassinStat, targetStat);
+    let succeed = false;
+    let extreme = false;
+    if (contest >= 3) { succeed = true; extreme = true; }
+    else if (contest >= 2) succeed = true;
+    else if (contest >= 1) {
+        if ((assassin.con || 0) > (emp.con || 0)) succeed = false;
+        else succeed = true;
+    }
+    if (!succeed) {
+        return `<span class="fail">[暗杀失败]</span> ${assassin.name}（${roleId === 'chancellor' ? '宰相' : roleId === 'overseer' ? '监工' : '将军'}）暗杀${target.name}失败，皇帝cal+${calCost}，mdt基础-${mdtCost}。`;
+    }
+    const calBonus = d(6);
+    assassin.cal = (assassin.cal || 0) + calBonus;
+    target.isDead = true;
+    target.exitStatus = 'assassinated';
+    target.exitYear = G.time;
+    logLifeEvent(target, 'exit', '被暗杀');
+    logFamilyExitEvent(target, '被暗杀');
+    let msg = `<span class="fail">[暗杀成功]</span> ${assassin.name}（${roleId === 'chancellor' ? '宰相' : roleId === 'overseer' ? '监工' : '将军'}）成功暗杀${target.name}，暗杀人cal+${calBonus}`;
+    if (extreme) {
+        const conBonus = 2 + d(4, 2);
+        assassin.con = (assassin.con || 0) + conBonus;
+        msg += `，魄力+${conBonus}`;
+    }
+    return msg;
+}
+
+function showTeachTargets(c) {
+    const prompt = document.getElementById('actionPrompt');
+    const btnContainer = document.getElementById('actionBtns');
+    const treasury = G.organization.current.btre;
+
+    if (treasury < 16) {
+        prompt.textContent = '国库余额不足16，无法发动执教。';
+        btnContainer.innerHTML = '<button onclick="document.getElementById(\'actionPrompt\').textContent = \'点击一个角色来执行行动\'; document.getElementById(\'actionBtns\').innerHTML = \'\'">返回</button>';
+        return;
+    }
+
+    function showTargetList(teachType, subjectName) {
+        prompt.textContent = `${c.name}: 选择要教授的角色（教授科目: ${subjectName}）`;
+        btnContainer.innerHTML = '';
+
+        const availableTargets = G.chars.filter(x => !x.isDead && !x.exitStatus && x.id !== c.id);
+        if (availableTargets.length === 0) {
+            prompt.textContent = '没有可教授的角色。';
+            btnContainer.innerHTML = '<button onclick="document.getElementById(\'actionPrompt\').textContent = \'点击一个角色来执行行动\'; document.getElementById(\'actionBtns\').innerHTML = \'\'">返回</button>';
+            return;
+        }
+
+        availableTargets.forEach(target => {
+            const btn = document.createElement('button');
+            btn.textContent = `${target.name} (财富: ${target.wel.toFixed(1)})`;
+            if (target.wel < 4) {
+                btn.disabled = true;
+                btn.title = '该角色财富不足4，无法被教授';
+                btn.style.opacity = '0.5';
+            }
+            btn.onclick = () => {
+                const result = executeTeach(c, target, teachType);
+                showActionResult(result);
+                finalizeCharAction(c);
+            };
+            btnContainer.appendChild(btn);
+        });
+
+        const cancelBtn = document.createElement('button');
+        cancelBtn.textContent = '取消';
+        cancelBtn.onclick = () => {
+            document.getElementById('actionPrompt').textContent = '点击一个角色来执行行动';
+            document.getElementById('actionBtns').innerHTML = '';
+        };
+        btnContainer.appendChild(cancelBtn);
+    }
+
+    // 监工: sta/sex 中较高者
+    if (c.profession === '监工') {
+        const teachType = c.sta >= c.sex ? 'sta' : 'sex';
+        const subjectName = teachType === 'sta' ? '劳动力' : '性吸引力';
+        showTargetList(teachType, subjectName);
+        return;
+    }
+
+    // 将军: psq/con 中较高者
+    if (c.profession === '将军') {
+        const teachType = c.psq >= c.con ? 'psq' : 'con';
+        const subjectName = teachType === 'psq' ? '体格' : '魄力';
+        showTargetList(teachType, subjectName);
+        return;
+    }
+
+    // 宰相: existing behavior
+    const teachType = c.int >= c.cha ? 'int' : 'cha';
+    const subjectName = teachType === 'int' ? '智力' : '魅力';
+    showTargetList(teachType, subjectName);
+}
+
+function updateUIAfterAction(c) {
+    // 更新UI但不标记角色为已行动
+    renderCharList();
+    renderGame();
+}
+
+function executeTeach(c, target, teachType) {
+    resetLearningStreaks(c);
+    c.history.teach = (c.history.teach || 0) + 1;
+    
+    const treasury = G.organization.current.btre;
+    if (treasury < 16) {
+        return `<span class="fail">[失败]</span> 国库余额不足16，无法发动执教。`;
+    }
+    
+    if (target.wel < 4) {
+        return `<span class="fail">[失败]</span> ${target.name} 财富不足4，无法发动执教。`;
+    }
+    
+    // 花费国库2d8
+    const treasuryCost = d(8, 2);
+    // 花费被教授人财富1d4
+    const targetCost = d(4);
+    
+    if (treasuryCost > treasury) {
+        return `<span class="fail">[失败]</span> 国库余额不足${treasuryCost}，无法发动执教。`;
+    }
+    
+    if (targetCost > target.wel) {
+        return `<span class="fail">[失败]</span> ${target.name} 财富不足${targetCost}，无法发动执教。`;
+    }
+    
+    // 扣除花费
+    G.organization.current.btre -= treasuryCost;
+    target.wel -= targetCost;
+    
+    // 教授科目
+    if (!teachType) {
+        teachType = c.int >= c.cha ? 'int' : 'cha';
+    }
+    const totalGain = treasuryCost + targetCost + d(10); // 花费值总和 + 1d10
+    
+    const statMap = {
+        int: { label: '智力', key: 'int' },
+        cha: { label: '魅力', key: 'cha' },
+        sta: { label: '劳动力', key: 'sta' },
+        sex: { label: '性吸引力', key: 'sex' },
+        psq: { label: '体格', key: 'psq' },
+        con: { label: '魄力', key: 'con' }
+    };
+    const stat = statMap[teachType];
+    if (!stat) {
+        return `<span class="fail">[错误]</span> 未知科目类型。`;
+    }
+    
+    target[stat.key] = (target[stat.key] || 0) + totalGain;
+    
+    // 将军教授con时，将军con+1d4
+    let extraMsg = '';
+    if (c.profession === '将军' && teachType === 'con') {
+        const conGain = d(4);
+        c.con = (c.con || 0) + conGain;
+        extraMsg = `，将军魄力+${conGain}`;
+    }
+    
+    return `<span class="success">[执教]</span> ${c.name} 教授${target.name} ${stat.label}，花费国库${treasuryCost}，${target.name}花费财富${targetCost}，${target.name}${stat.label}+${totalGain}${extraMsg}`;
+}
+
+function teach(c) {
+    // 旧版本兼容
+    resetLearningStreaks(c);
+    c.history.teach = (c.history.teach || 0) + 1;
+    const r = ch(c.edu);
+    let msg = '';
+    if (r === 0) {
+        const eduLoss = d(4);
+        c.edu -= eduLoss;
+        msg = `<span class="fail">[失败]</span> 执教（教-${eduLoss}）`;
+    } else if (r === 1) {
+        const eduG = d(4), welG = d(4);
+        c.edu += eduG; c.wel += welG;
+        const student = G.chars.filter(x => !x.isDead && x.profession === '学者' || x.profession === '艺人').sort(() => 0.5 - Math.random())[0];
+        if (student) {
+            student.edu += d(2);
+            msg = `<span class="success">[成功]</span> 执教（教+${eduG} 财+${welG} 学生${student.name}教+提高）`;
+        } else {
+            msg = `<span class="success">[成功]</span> 执教（教+${eduG} 财+${welG}）`;
+        }
+    } else if (r === 2) {
+        const eduG = d(6), welG = d(6), intG = d(4);
+        c.edu += eduG; c.wel += welG; c.int += intG;
+        const students = G.chars.filter(x => !x.isDead && (x.profession === '学者' || x.profession === '艺人') && x.id !== c.id).slice(0, 2);
+        students.forEach(s => s.edu += d(2));
+        msg = `<span class="great">[大成功]</span> 执教（教+${eduG} 财+${welG} 智+${intG} 学生数人教+提高）`;
+    } else {
+        const eduG = d(8), welG = d(8, 2), intG = d(6), chaG = d(4);
+        c.edu += eduG; c.wel += welG; c.int += intG; c.cha += chaG;
+        const students = G.chars.filter(x => !x.isDead && (x.profession === '学者' || x.profession === '艺人')).slice(0, 3);
+        students.forEach(s => { s.edu += d(3); s.int += d(2); });
+        msg = `<span class="extreme">[超常]</span> 执教（教+${eduG} 财+${welG} 智+${intG} 魅+${chaG} 学生数人教智+提高）`;
+    }
+    return msg;
 }
 
 function showDonatePrompt(c) {
@@ -2565,13 +3790,29 @@ function deathCheck(c) {
     return false;
 }
 
+function overallCheck(c) {
+    const msgs = [];
+    msgs.push(...grow(c).map(m => `<span class="log-growth">[成长]</span> ${m}`));
+    msgs.push(...accident(c));
+    if (c.sta < 5 && !c.exitStatus) {
+        const loss = d(6);
+        c.hel -= loss;
+        msgs.push(`<span class="fail">[虚弱]</span> 体力过低，寿命缩短${loss}年。`);
+    }
+    if (deathCheck(c)) {
+        msgs.push(`<span class="log-death">[死亡]</span> ${c.name} 死了。`);
+    }
+    return msgs;
+}
+
 function handleExit(c, reason) {
     c.exitStatus = reason;
-    c.isDead = true;
+    c.isDead = (reason === 'natural' || reason === 'killed');
     c.exitYear = G.time;
     if (!c.entryAge && c.entryAge !== 0) c.entryAge = c.age;
     const exitLabels = { natural: '寿终正寝', killed: '被杀', retired: '隐退', exiled: '流放' };
     logLifeEvent(c, 'exit', exitLabels[reason] || '离场');
+    logFamilyExitEvent(c, exitLabels[reason] || '离场');
 
     if (reason === 'natural') {
         const spouse = c.spouseId ? G.chars.find(x => x.id === c.spouseId) : null;
@@ -2607,8 +3848,8 @@ function handleExit(c, reason) {
         c.wel = 0;
     }
 
-    // mdt penalty for non-natural exits
-    if (reason !== 'natural') {
+    // mdt penalty for non-natural exits (retired is not penalized)
+    if (reason !== 'natural' && reason !== 'retired') {
         G.mdtPenalty += 20;
         addLog(`<span class="log-death">[天命]</span> ${c.name} 非正常离场，天命基础-20。`);
     }
@@ -2619,12 +3860,17 @@ function handleExit(c, reason) {
         addLog(`<span class="log-death">[天命]</span> ${c.name} 是劳工，天命基础额外-${d(10)}。`);
     }
 
-    // Move to unavailable chars (remove from active pool)
+    // Move to appropriate list (remove from active pool)
     const idx = G.chars.indexOf(c);
     if (idx >= 0) {
         G.chars.splice(idx, 1);
-        if (!G.unavailableChars) G.unavailableChars = [];
-        G.unavailableChars.push(c);
+        if (reason === 'natural' || reason === 'killed') {
+            if (!G.deadChars) G.deadChars = [];
+            G.deadChars.push(c);
+        } else {
+            if (!G.unavailableChars) G.unavailableChars = [];
+            G.unavailableChars.push(c);
+        }
     }
 
     // Succession: if the deceased is the current leader
@@ -2633,7 +3879,7 @@ function handleExit(c, reason) {
         let dynastyChangeSource = null; // 'spouse' | 'other' | 'any'
 
         // 1. Pick oldest among 储君
-        const heirs = G.chars.filter(x => x.profession === '储君' && !x.exitStatus);
+        const heirs = G.chars.filter(x => !x.exitStatus && (x._class === '储君' || (x.parents && x.parents.includes(c.id))));
         if (heirs.length > 0) {
             heirs.sort((a, b) => b.age - a.age);
             successor = heirs[0];
@@ -2671,111 +3917,208 @@ function handleExit(c, reason) {
         }
 
         if (successor) {
-            G.leaderId = successor.id;
-            successor.profession = '皇帝';
-            logLifeEvent(successor, 'appoint', '继位成为新皇帝');
-
-            // If successor is child of deceased emperor, retire the old consort
-            if (successor.parents && successor.parents.includes(c.id)) {
-                const oldConsort = G.chars.find(x =>
-                    x.profession === '正宫' && x.spouseId === c.id && !x.exitStatus
-                );
-                if (oldConsort) {
-                    handleExit(oldConsort, 'retired');
-                    addLog(`<span class="info">[隐退]</span> 先帝驾崩，正宫 ${oldConsort.name} 隐退。`);
+            const doSucc = (newName) => {
+                if (newName) {
+                    successor.givenname = newName;
+                    successor.name = successor.surname + (successor.middlename || '') + successor.givenname;
                 }
-            }
+                G.leaderId = successor.id;
+                successor.profession = '皇帝';
+                logLifeEvent(successor, 'appoint', '继位成为新皇帝');
 
-            // Gender change: clear all harem members to 无业者
-            if (successor.gender !== c.gender) {
-                G.chars.filter(x =>
-                    (x.profession === '正宫' || x.profession === '侧室') && !x.exitStatus && x.id !== successor.id
-                ).forEach(x => {
-                    x.profession = '无业者';
-                    addLog(`<span class="info">[改制]</span> 后宫成员 ${x.name} 转为无业者。`);
-                });
-            }
-
-            // New emperor's existing spouse/lover becomes consort
-            if (successor.married && successor.spouseId !== null) {
-                const spouse = G.chars.find(x => x.id === successor.spouseId && !x.exitStatus);
-                if (spouse && spouse.id !== G.leaderId) {
-                    spouse.profession = '正宫';
-                    addLog(`<span class="success">[册封]</span> ${spouse.name} 成为正宫。`);
-                }
-            }
-            if (successor.lovers && successor.lovers.length > 0) {
-                const firstLover = G.chars.find(x =>
-                    x.id === successor.lovers[0] && !x.exitStatus && x.id !== G.leaderId
-                );
-                if (firstLover && firstLover.profession !== '正宫') {
-                    firstLover.profession = '侧室';
-                    addLog(`<span class="success">[册封]</span> ${firstLover.name} 成为侧室。`);
-                }
-            }
-
-            // Dynasty name change logic
-            let shouldChange = false;
-            let newSurname = null;
-
-            if (dynastyChangeSource === 'spouse') {
-                // 正宫: 25% → 原姓 + 舍弃赐姓
-                shouldChange = Math.random() < 0.25;
-                if (shouldChange) newSurname = G.founderSurname;
-            } else if (dynastyChangeSource === 'other') {
-                // 重臣: 50%
-                shouldChange = Math.random() < 0.5;
-                if (shouldChange) {
-                    newSurname = successor.middlename ? G.founderSurname : successor.surname;
-                }
-            } else if (dynastyChangeSource === 'any') {
-                // 其他角色: 75%
-                shouldChange = Math.random() < 0.75;
-                if (shouldChange) {
-                    newSurname = successor.middlename ? G.founderSurname : successor.surname;
-                }
-            }
-
-            if (shouldChange) {
-                G.imperialSurname = newSurname;
-                G.mdtPenalty += 100;
-
-                // 舍弃赐姓: revert all characters with bestowed surnames
-                G.chars.forEach(ch => {
-                    if (ch.middlename) {
-                        ch.surname = ch.middlename;
-                        ch.middlename = '';
-                        ch.name = ch.surname + ch.givenname;
+                // If successor is child of deceased emperor, retire the old consort
+                if (successor.parents && successor.parents.includes(c.id)) {
+                    const oldConsort = G.chars.find(x =>
+                        x.profession === '正宫' && x.spouseId === c.id && !x.exitStatus
+                    );
+                    if (oldConsort) {
+                        handleExit(oldConsort, 'retired');
+                        addLog(`<span class="info">[隐退]</span> 先帝驾崩，正宫 ${oldConsort.name} 隐退。`);
                     }
-                });
+                }
 
-                // New leader adopts the dynasty surname
-                successor.surname = newSurname;
-                successor.name = successor.surname + successor.givenname;
+                // Gender change: clear all harem members to 无业者
+                if (successor.gender !== c.gender) {
+                    G.chars.filter(x =>
+                        x.profession === '正宫' && !x.exitStatus && x.id !== successor.id
+                    ).forEach(x => {
+                        x.profession = '无业者';
+                        addLog(`<span class="info">[改制]</span> 后宫成员 ${x.name} 转为无业者。`);
+                    });
+                    G.chars.filter(x =>
+                        isConsort(x) && !x.exitStatus && x.id !== successor.id
+                    ).forEach(x => {
+                        if (x.lovers) x.lovers = x.lovers.filter(id => id !== G.leaderId);
+                        addLog(`<span class="info">[改制]</span> 情人 ${x.name} 不再是皇帝情人。`);
+                    });
+                }
 
-                addLog(`<span class="info">[改朝]</span> 国姓改为「${newSurname}」，天命受损！`);
-            }
+                // New emperor's existing spouse/lover becomes consort
+                if (successor.married && successor.spouseId !== null) {
+                    const spouse = G.chars.find(x => x.id === successor.spouseId && !x.exitStatus);
+                    if (spouse && spouse.id !== G.leaderId) {
+                        spouse.profession = '正宫';
+                        addLog(`<span class="success">[册封]</span> ${spouse.name} 成为正宫。`);
+                    }
+                }
+                if (successor.lovers && successor.lovers.length > 0) {
+                    const firstLover = G.chars.find(x =>
+                        x.id === successor.lovers[0] && !x.exitStatus && x.id !== G.leaderId
+                    );
+                    if (firstLover && firstLover.profession !== '正宫') {
+                        if (!firstLover.lovers) firstLover.lovers = [];
+                        if (!firstLover.lovers.includes(successor.id)) firstLover.lovers.push(successor.id);
+                        addLog(`<span class="success">[册封]</span> ${firstLover.name} 成为情人。`);
+                    }
+                }
 
-            addLog(`<span class="log-succession">[继位]</span> ${successor.name} 成为新领袖。`);
+                // Dynasty name change logic
+                let shouldChange = false;
+                let newSurname = null;
+
+                if (dynastyChangeSource === 'spouse') {
+                    shouldChange = Math.random() < 0.25;
+                    if (shouldChange) newSurname = G.founderSurname;
+                } else if (dynastyChangeSource === 'other') {
+                    shouldChange = Math.random() < 0.5;
+                    if (shouldChange) {
+                        newSurname = successor.middlename ? G.founderSurname : successor.surname;
+                    }
+                } else if (dynastyChangeSource === 'any') {
+                    shouldChange = Math.random() < 0.75;
+                    if (shouldChange) {
+                        newSurname = successor.middlename ? G.founderSurname : successor.surname;
+                    }
+                }
+
+                if (shouldChange) {
+                    G.imperialSurname = newSurname;
+                    G.mdtPenalty += 100;
+
+                    G.chars.forEach(ch => {
+                        if (ch.middlename) {
+                            ch.surname = ch.middlename;
+                            ch.middlename = '';
+                            ch.name = ch.surname + ch.givenname;
+                        }
+                    });
+
+                    successor.surname = newSurname;
+                    successor.name = successor.surname + successor.givenname;
+
+                    addLog(`<span class="info">[改朝]</span> 国姓改为「${newSurname}」，天命受损！`);
+                }
+
+                addLog(`<span class="log-succession">[继位]</span> ${successor.name} 成为新领袖。`);
+            };
+            showNameInputOverlay('新皇帝即位', successor.givenname, successor.gender, doSucc);
         } else {
             addLog(`<span class="log-death">[灭亡]</span> 无人继承，王朝覆灭。`);
         }
     }
 }
 
-function overallCheck(c) {
-    const msgs = [];
-    msgs.push(...grow(c).map(m => `<span class="log-growth">[成长]</span> ${m}`));
-    msgs.push(...accident(c));
-    if (c.sta < 5 && !c.exitStatus) {
-        const loss = d(6);
-        c.hel -= loss;
-        msgs.push(`<span class="fail">[虚弱]</span> 体力过低，寿命缩短${loss}年。`);
+// ---- Game Over ----
+
+function checkGameOver() {
+    if (G.gameOver) return G.gameOver.reason;
+    const cur = G.organization && G.organization.current;
+    if (cur && cur.mdt < 0) {
+        showGameOver('天命已尽！');
+        return '天命已尽！';
     }
-    if (deathCheck(c)) {
-        msgs.push(`<span class="log-death">[死亡]</span> ${c.name} 死了。`);
+    const alive = G.chars.filter(c => !c.isDead && !c.exitStatus);
+    if (alive.length === 0) {
+        showGameOver('树倒猢狲散！');
+        return '树倒猢狲散！';
     }
-    return msgs;
+    return null;
+}
+
+function showGameOver(reason) {
+    if (G.gameOver) return;
+    G.gameOver = { reason, year: G.time };
+    document.getElementById('btnNextYear').disabled = true;
+    document.getElementById('btnNextYear').textContent = '⚫ 游戏结束';
+    const title = document.getElementById('gameOverTitle');
+    const content = document.getElementById('gameOverContent');
+    title.textContent = reason;
+    const cur = G.organization && G.organization.current;
+    const years = G.time;
+    const peak = G.organization ? G.organization.peak : {};
+    content.innerHTML = `
+        <div style="font-size:1.2rem;color:#e94560;margin:16px 0;">${reason}</div>
+        <div style="font-size:0.85rem;color:#aaa;margin-bottom:12px;">纪元 ${years}年</div>
+        <div class="detail-stats">
+            <span>科技: ${cur ? cur.tec : '?'}</span>
+            <span>文化: ${cur ? cur.cul : '?'}</span>
+            <span>生产: ${cur ? cur.prd : '?'}</span>
+            <span>人口: ${cur ? cur.pop : '?'}</span>
+            <span>天命: ${cur ? cur.mdt : '?'}</span>
+            <span>等级: ${cur ? cur.lvl : '?'}</span>
+        </div>
+        <div class="detail-stats" style="margin-top:6px;">
+            <span>存活的角色: ${G.chars.filter(c => !c.isDead && !c.exitStatus).length}</span>
+            <span>退场角色: ${(G.unavailableChars || []).length + (G.deadChars || []).length}</span>
+            <span>历史人物: ${(G.historicalFigures || []).length}</span>
+        </div>
+        <div style="margin-top:16px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
+            <button onclick="exportSettlement()" style="background:#e94560;color:#fff;border:none;padding:8px 16px;border-radius:4px;cursor:pointer;">导出结算</button>
+            <button onclick="closeGameOver()" style="background:#444;color:#fff;border:none;padding:8px 16px;border-radius:4px;cursor:pointer;">返回浏览</button>
+        </div>
+    `;
+    document.getElementById('gameOverOverlay').style.display = 'flex';
+    addLog(`<span class="log-death">[终结]</span> ${reason}`);
+    updateOrganization();
+}
+
+function closeGameOver() {
+    document.getElementById('gameOverOverlay').style.display = 'none';
+}
+
+function exportSettlement() {
+    const cur = G.organization && G.organization.current;
+    const lines = [];
+    lines.push('=== 海地老皇帝 结算报告 ===');
+    lines.push(`游戏结束原因: ${G.gameOver ? G.gameOver.reason : '未知'}`);
+    lines.push(`纪元: ${G.time}年`);
+    lines.push('');
+    lines.push('--- 组织数值 ---');
+    if (cur) {
+        lines.push(`科技: ${cur.tec}`);
+        lines.push(`文化: ${cur.cul}`);
+        lines.push(`生产: ${cur.prd}`);
+        lines.push(`人口: ${cur.pop}`);
+        lines.push(`军事: ${cur.mil}`);
+        lines.push(`信息: ${cur.inf}`);
+        lines.push(`银库: ${cur.tre}`);
+        lines.push(`支持: ${cur.apo}`);
+        lines.push(`天命: ${cur.mdt}`);
+        lines.push(`等级: ${cur.lvl}`);
+    }
+    lines.push('');
+    lines.push('--- 角色统计 ---');
+    lines.push(`存活角色: ${G.chars.filter(c => !c.isDead && !c.exitStatus).length}`);
+    lines.push(`退场角色: ${(G.unavailableChars || []).length + (G.deadChars || []).length}`);
+    lines.push(`历史人物: ${(G.historicalFigures || []).length}`);
+    lines.push('');
+    lines.push('--- 所有角色 ---');
+    const allChars = [...G.chars, ...(G.unavailableChars || []), ...(G.deadChars || []), ...(G.historicalFigures || [])];
+    allChars.sort((a, b) => (a.id || 0) - (b.id || 0));
+    allChars.forEach(c => {
+        const status = c.exitStatus ? (c.exitStatus === 'natural' ? '已故' : c.exitStatus === 'killed' ? '被杀' : c.exitStatus === 'retired' ? '隐退' : c.exitStatus === 'exiled' ? '流放' : c.exitStatus) : (c.isDead ? '死亡' : '存活');
+        lines.push(`${c.name} (${c.gender === 'm' ? '男' : '女'}, ${c.age}岁, ${c.profession || '无业'}) [${status}]`);
+    });
+    const text = lines.join('\n');
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `海地老皇帝_结算_${G.initialCharName || '未知'}_纪元${G.time}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(a.href);
+    addLog('<span class="info">[结算]</span> 结算报告已导出。');
 }
 
 // ---- Age-based action list ----
@@ -2814,6 +4157,7 @@ function getActionsForAge(age, c) {
         { id: 'transfer', label: '转赠' },
         { id: 'appoint', label: '指派' },
         { id: 'bestowSurname', label: '赐姓' },
+        { id: 'governPolicy', label: '施政' },
         { id: 'nothing', label: '无所事事' }
     ];
     if (age < 81) return [
@@ -2831,6 +4175,7 @@ function getActionsForAge(age, c) {
         { id: 'transfer', label: '转赠' },
         { id: 'appoint', label: '指派' },
         { id: 'bestowSurname', label: '赐姓' },
+        { id: 'governPolicy', label: '施政' },
         { id: 'nothing', label: '无所事事' }
     ];
     return [
@@ -2846,6 +4191,7 @@ function getActionsForAge(age, c) {
         { id: 'transfer', label: '转赠' },
         { id: 'appoint', label: '指派' },
         { id: 'bestowSurname', label: '赐姓' },
+        { id: 'governPolicy', label: '施政' },
         { id: 'nothing', label: '无所事事' }
     ];
 }
@@ -2967,8 +4313,20 @@ function randomizeName() {
     if (idx < 0) return;
     const chosen = window._charOptions[idx];
     const surname = _imperialSurnames[Math.floor(Math.random() * _imperialSurnames.length)];
-    const givenPool = chosen.gender === 'm' ? _maleGiven : _femaleGiven;
-    const given = givenPool[Math.floor(Math.random() * givenPool.length)];
+    const isMale = chosen.gender === 'm';
+    const givenFirstPool = isMale ? MALE_GIVEN_FIRST : FEMALE_GIVEN_FIRST;
+    const givenSecondPool = isMale ? ALL_MALE_GIVEN : ALL_FEMALE_GIVEN;
+
+    let given;
+    if (Math.random() < 0.3 && givenFirstPool.length > 0) {
+        // 生成三字名
+        const first = givenFirstPool[Math.floor(Math.random() * givenFirstPool.length)];
+        const second = givenSecondPool[Math.floor(Math.random() * givenSecondPool.length)];
+        given = first + second;
+    } else {
+        given = givenSecondPool[Math.floor(Math.random() * givenSecondPool.length)];
+    }
+
     document.getElementById('charNameInput').value = given;
     window._selectedImperialSurname = surname;
     const sp = document.getElementById('surnamePicker');
@@ -2983,12 +4341,53 @@ function getStateName(lvl) {
     return '小海地' + levelNames[lvl];
 }
 
+function validateNameInput(input) {
+    let fullwidth = 0, halfwidth = 0;
+    for (const ch of input.value) {
+        const code = ch.charCodeAt(0);
+        if (code > 255) {
+            fullwidth++;
+        } else {
+            halfwidth++;
+        }
+    }
+    if (fullwidth * 3 + halfwidth > 12 || halfwidth > 8) {
+        input.value = input._lastValid;
+    } else {
+        input._lastValid = input.value;
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const pid = document.getElementById('playerIdInput');
+    const hq = document.getElementById('hqNameInput');
+    if (pid) { pid._lastValid = pid.value; pid.addEventListener('input', () => validateNameInput(pid)); }
+    if (hq) { hq._lastValid = hq.value; hq.addEventListener('input', () => validateNameInput(hq)); }
+});
+
 function confirmCharacter() {
     const idx = window._selectedCharIdx;
     if (idx < 0) { alert('请先选择一个角色'); return; }
     const surname = window._selectedImperialSurname || '张';
     const givenName = document.getElementById('charNameInput').value.trim();
     if (!givenName) { alert('请输入角色名字'); return; }
+    const playerId = document.getElementById('playerIdInput').value.trim() || 'player';
+    const headquarterName = document.getElementById('hqNameInput').value.trim() || '办公室';
+    // Validate player ID and HQ name width
+    const inputs = [
+        { el: document.getElementById('playerIdInput'), val: playerId, label: '玩家ID' },
+        { el: document.getElementById('hqNameInput'), val: headquarterName, label: '驻地名称' }
+    ];
+    for (const inp of inputs) {
+        let fw = 0, hw = 0;
+        for (const ch of inp.val) {
+            if (ch.charCodeAt(0) > 255) fw++; else hw++;
+        }
+        if (fw * 3 + hw > 12 || hw > 8) {
+            alert(`${inp.label}过长：最多4个全角或8个半角字符`);
+            return;
+        }
+    }
     const chosen = JSON.parse(JSON.stringify(window._charOptions[idx]));
     chosen.surname = surname;
     chosen.givenname = givenName;
@@ -2999,12 +4398,14 @@ function confirmCharacter() {
     chosen.cal = Math.max(0, Math.round((25 - chosen.luc / 5) * 3) - d(10, 2));
 
     G = {
-        playerId: 'player',
+        playerId: playerId,
         enrollTime: new Date().toISOString().slice(0, 10).replace(/-/g, ''),
         time: 0,
         leaderId: 0,
         imperialSurname: surname,
         founderSurname: surname,
+        headquarterName: headquarterName,
+        mdtRestorerAccum: 0,
         initialCharName: chosen.name,
         mdtPenalty: 0,
         coupCooldown: 0,
@@ -3012,6 +4413,7 @@ function confirmCharacter() {
         chars: [chosen],
         nextCharId: 1,
         unavailableChars: [],
+        deadChars: [],
         bounties: [],
         specialTalent: null,
         specialTalentRefresh: 0,
@@ -3019,6 +4421,7 @@ function confirmCharacter() {
         engagements: [],
         mapData: {
             targets: [
+                { id: 'headquarter', name: headquarterName, type: 'admin', conquered: true },
                 { id: 'keji', name: '科技大学', type: 'infrastructure', conquered: false },
                 { id: 'caijing', name: '财经大学', type: 'infrastructure', conquered: false },
                 { id: 'magang', name: '玛钢厂', type: 'infrastructure', conquered: false },
@@ -3049,7 +4452,7 @@ function renderGame() {
     document.getElementById('gameInfo').textContent =
         `玩家: ${G.playerId}  |  纪元: ${G.time}年`;
     document.getElementById('orgLevelInfo').textContent =
-        `等级: ${ORG_LEVEL_NAMES[cur.lvl]}`;
+        `${G.founderSurname} 等级：${ORG_LEVEL_NAMES[cur.lvl]}`;
     const legendEl = document.getElementById('classLegend');
     if (legendEl) {
         legendEl.innerHTML = Object.entries(CLASS_COLORS).map(([k,v]) =>
@@ -3112,12 +4515,16 @@ function renderMap() {
     const curLvl = G.organization.current.lvl;
     const stateName = getStateName(curLvl);
 
-    let html = `<div class="map-title">${stateName} · ${levelNames[curLvl] || '未知'}级</div>`;
+    let html = `<div class="map-title">${stateName} · ${G.headquarterName || '办公室'}</div>`;
     html += '<div class="map-targets">';
 
     md.targets.forEach(t => {
-        const typeLabel = t.type === 'infrastructure' ? '基础设施' : '行政中心';
-        const typeColor = t.type === 'infrastructure' ? '#4fc3f7' : '#ffb74d';
+        let typeLabel = t.type === 'infrastructure' ? '基础设施' : '行政中心';
+        let typeColor = t.type === 'infrastructure' ? '#4fc3f7' : '#ffb74d';
+        if (t.id === 'headquarter') {
+            typeLabel = '驻地中心';
+            typeColor = '#e94560';
+        }
         html += `
             <div class="map-target ${t.conquered ? 'conquered' : 'unconquered'}" data-id="${t.id}">
                 <div class="map-target-name">${t.name}</div>
@@ -3243,7 +4650,7 @@ function renderCombinedPanel() {
 
     // --- 后宫 ---
     const consort = alive.find(c => c.profession === '正宫');
-    const concubines = alive.filter(c => c.profession === '侧室');
+    const concubines = alive.filter(c => isConsort(c));
     let harHtml = '';
     if (consort) {
         harHtml += '<div class="court-section-title">正宫</div>';
@@ -3253,7 +4660,7 @@ function renderCombinedPanel() {
         </div>`;
     }
     if (concubines.length > 0) {
-        harHtml += `<div class="court-section-title">侧室（${concubines.length}人）</div>`;
+        harHtml += `<div class="court-section-title">情人（${concubines.length}人）</div>`;
         concubines.forEach(c => {
             harHtml += `<div class="court-entry">
                 <div><span class="court-name">${c.name}</span><span class="court-stats" style="margin-left:6px;">${c.age}岁</span></div>
@@ -3266,10 +4673,11 @@ function renderCombinedPanel() {
 
     // --- 不可用角色与死亡角色 ---
     const list = G.unavailableChars || [];
-    const aliveUnavail = list.filter(c => !c.exitStatus);
-    const deadUnavail = list.filter(c => c.exitStatus);
+    const aliveUnavail = list.filter(c => !c.exitStatus || c.exitStatus === 'exiled' || c.exitStatus === 'retired');
+    const deadUnavail = list.filter(c => c.exitStatus === 'natural' || c.exitStatus === 'killed');
+    const deadList = G.deadChars || [];
 
-    if (list.length === 0) {
+    if (list.length === 0 && deadList.length === 0) {
         unavailableEl.innerHTML = '<div style="color:#555;font-size:0.75rem;padding:4px 0;">无</div>';
         deadEl.innerHTML = '<div style="color:#555;font-size:0.75rem;padding:4px 0;">无</div>';
     } else {
@@ -3280,9 +4688,10 @@ function renderCombinedPanel() {
                 let statusClass = 'unawakened';
                 let statusText = '未觉醒';
                 if (c.exitStatus === 'exiled') { statusClass = 'exiled'; statusText = '流放'; }
-                uHtml += `<div class="unavailable-entry">
+                uHtml += `<div class="unavailable-entry" style="cursor:pointer;" ondblclick="showUnavailableDetail(${c.id})">
                     <span class="name">${c.name}</span>
-                    <span class="status ${statusClass}">${statusText}</span>
+                    <span style="margin-left:6px;color:#888;">${c.gender === 'm' ? '♂' : '♀'} ${c.age}岁</span>
+                    <span class="status ${statusClass}" style="margin-left:6px;">${statusText}</span>
                 </div>`;
             });
             unavailableEl.innerHTML = uHtml;
@@ -3290,9 +4699,10 @@ function renderCombinedPanel() {
             unavailableEl.innerHTML = '<div style="color:#555;font-size:0.75rem;padding:4px 0;">无</div>';
         }
         // Dead tab
-        if (deadUnavail.length > 0) {
+        const allDead = [...deadUnavail, ...deadList];
+        if (allDead.length > 0) {
             let dHtml = '';
-            deadUnavail.forEach(c => {
+            allDead.forEach(c => {
                 let statusClass = 'natural';
                 let statusText = '已故';
                 if (c.exitStatus === 'killed') { statusClass = 'exiled'; statusText = '被杀'; }
@@ -3300,7 +4710,7 @@ function renderCombinedPanel() {
                 dHtml += `<div class="unavailable-entry"${c.exitStatus ? ' style="cursor:pointer;"' : ''}>
                     <span class="name">${c.name}</span>
                     <span class="status ${statusClass}">${statusText}</span>
-                    <button class="hist-btn" onclick="showUnavailableDetail(${c.id})" title="查看详情">📋</button>
+                    <button class="hist-btn" onclick="showDeadDetail(${c.id})" title="查看详情">📋</button>
                 </div>`;
             });
             deadEl.innerHTML = dHtml;
@@ -3371,20 +4781,53 @@ function showUnavailableDetail(charId) {
     document.getElementById('charDetailOverlay').style.display = 'flex';
 }
 
+function showDeadDetail(charId) {
+    const c = (G.deadChars || []).find(x => x.id === charId) || (G.unavailableChars || []).find(x => x.id === charId && x.exitStatus);
+    if (!c) return;
+    document.getElementById('charDetailTitle').textContent = `${c.name} 详细`;
+    document.getElementById('charDetailContent').innerHTML = renderDetailPanel(c, false);
+    document.getElementById('charDetailOverlay').style.display = 'flex';
+}
+
+function showUnavailableDetail(charId) {
+    const c = (G.unavailableChars || []).find(x => x.id === charId);
+    if (!c) return;
+    document.getElementById('charDetailTitle').textContent = `${c.name} 详细`;
+    document.getElementById('charDetailContent').innerHTML = renderDetailPanel(c, false);
+    document.getElementById('charDetailOverlay').style.display = 'flex';
+}
+
+let charListTab = 'free';
+
 function renderCharList() {
     const container = document.getElementById('charList');
     container.innerHTML = '';
-    const EXIT_LABELS = { natural:'寿终', killed:'被杀', retired:'隐退', exiled:'流放' };
 
+    document.querySelectorAll('#charListTabs .char-tab').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.tab === charListTab);
+    });
+
+    if (charListTab === 'free') {
+        renderFreeChars(container);
+    } else {
+        renderWorkerChars(container);
+    }
+}
+
+function renderFreeChars(container) {
+    const EXIT_LABELS = { natural:'寿终', killed:'被杀', retired:'隐退', exiled:'流放' };
     const aliveChars = G.chars.filter(c => !c.isDead);
     const keyLabels = 'abcdefghijklmnopqrstuvwxyz';
 
+    const autoWorkProfessions = ['学者','艺人','劳工','士兵','普侍'];
     G.chars.forEach(c => {
+        if (autoWorkProfessions.includes(c.profession)) return;
         const exited = !!c.exitStatus;
         const aliveIdx = aliveChars.indexOf(c);
         const keyChar = aliveIdx >= 0 && aliveIdx < 26 ? keyLabels[aliveIdx] : null;
         const entry = document.createElement('div');
-        entry.className = 'char-entry' + (exited ? ' dead' : '') + (actingCharId === c.id ? ' active' : '');
+        const actedThisYear = c._actedThisYear;
+        entry.className = 'char-entry' + (exited ? ' dead' : '') + (actingCharId === c.id ? ' active' : '') + (actedThisYear ? ' acted' : '');
         entry.innerHTML = `
             <div>
                 ${keyChar ? `<span class="key-badge">${keyChar}</span>` : ''}
@@ -3394,13 +4837,14 @@ function renderCharList() {
                 <span class="class-tag" style="color:${CLASS_COLORS[charClass(c)]||'#a0a0b0'};font-size:0.75rem;margin-left:4px;">[${charClass(c)}]</span>
                 ${c.id === G.leaderId ? '<span class="leader-tag">领袖</span>' : ''}
                 <span class="status-tag ${exited ? 'dead' : 'alive'}">${EXIT_LABELS[c.exitStatus] || (c.isDead ? '已死' : '存活')}</span>
+                ${actedThisYear ? '<span class="acted-tag" style="color:#888;font-size:0.7rem;margin-left:4px;">[已行动]</span>' : ''}
                 ${c.married && c.spouseId !== null ? `<span style="color:#f48fb1;font-size:0.8rem;margin-left:6px;">💍 ${G.chars.find(s => s.id === c.spouseId)?.name || '未知'}</span>` : ''}
             </div>
             <div class="stats-desc">
                 ${(() => {
                     const sorted = STAT_KEYS.map(k => ({ key: k, val: c[k] })).sort((a, b) => b.val - a.val);
-                    const top3 = sorted.slice(0, 3).map(s => `<span style="color:${STAT_COLORS[s.key]}">${STAT_LABELS[s.key]}:${statDesc(s.key, s.val)}</span>`).join('');
-                    const bot3 = sorted.slice(-3).map(s => `<span style="color:${STAT_COLORS[s.key]}">${STAT_LABELS[s.key]}:${statDesc(s.key, s.val)}</span>`).join('');
+                    const top3 = sorted.slice(0, 3).map(s => `<span style="color:${statColor(s.key, c)}">${STAT_LABELS[s.key]}:${statDesc(s.key, s.val)}</span>`).join('');
+                    const bot3 = sorted.slice(-3).map(s => `<span style="color:${statColor(s.key, c)}">${STAT_LABELS[s.key]}:${statDesc(s.key, s.val)}</span>`).join('');
                     return `<div style="display:flex;gap:4px;flex-wrap:wrap;">${top3}</div><div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:1px;">${bot3}</div>`;
                 })()}
             </div>
@@ -3418,6 +4862,75 @@ function renderCharList() {
         entry.addEventListener('dblclick', () => showCharDetail(c));
         container.appendChild(entry);
     });
+}
+
+function renderWorkerChars(container) {
+    const autoWorkProfessions = ['学者','艺人','劳工','士兵','普侍'];
+    const IMPORTANT_STATS = { 学者:'int', 艺人:'cha', 劳工:'sta', 士兵:'psq', 监工:'sta', 将军:'psq', 普侍:'sex' };
+    const workers = G.chars.filter(c => !c.isDead && !c.exitStatus && autoWorkProfessions.includes(c.profession));
+
+    const groups = {};
+    workers.forEach(c => {
+        if (!groups[c.profession]) groups[c.profession] = [];
+        groups[c.profession].push(c);
+    });
+
+    autoWorkProfessions.forEach(prof => {
+        const list = groups[prof];
+        if (!list || list.length === 0) return;
+
+        const statKey = IMPORTANT_STATS[prof];
+        const statLabel = STAT_LABELS[statKey];
+
+        const group = document.createElement('div');
+        group.className = 'worker-group collapsed';
+
+        let bodyHtml = '';
+        list.forEach(c => {
+            const actedThisYear = c._actedThisYear;
+            const active = actingCharId === c.id;
+            const sVal = c[statKey] || 0;
+            const s評語 = statDesc(statKey, sVal);
+            const sColor = statColor(statKey, c);
+            bodyHtml += `<div class="worker-entry${actedThisYear ? ' acted' : ''}${active ? ' active' : ''}" data-id="${c.id}">
+                <span class="w-name">${c.name} ${c.gender === 'm' ? '♂' : '♀'}</span>
+                <span class="w-age">${c.age}岁</span>
+                <span class="w-class" style="color:${CLASS_COLORS[charClass(c)]||'#a0a0b0'}">[${charClass(c)}]</span>
+                <span class="w-stat" style="color:${sColor}">${statLabel}:${s評語}</span>
+            </div>`;
+        });
+
+        group.innerHTML = `
+            <div class="worker-group-header">
+                <span class="worker-group-title">[${prof}]</span>
+                <span class="worker-group-count">${list.length}人</span>
+                <span class="worker-group-arrow">▶</span>
+            </div>
+            <div class="worker-group-body">${bodyHtml}</div>
+        `;
+
+        group.querySelector('.worker-group-header').addEventListener('click', () => {
+            group.classList.toggle('collapsed');
+        });
+
+        group.querySelectorAll('.worker-entry').forEach(el => {
+            el.addEventListener('click', (e) => {
+                e.stopPropagation();
+                selectChar(parseInt(el.dataset.id));
+            });
+            const cData = G.chars.find(ch => ch.id === parseInt(el.dataset.id));
+            if (cData) {
+                el.addEventListener('dblclick', () => showCharDetail(cData));
+            }
+        });
+
+        container.appendChild(group);
+    });
+}
+
+function switchCharTab(tab) {
+    charListTab = tab;
+    renderCharList();
 }
 
 function showCharDetail(c, inHistory) {
@@ -3492,7 +5005,10 @@ function renderDetailPanel(c, inHistory) {
         </div>
         ${inHistory ? renderLifeEvents(c) : ''}
         ${inHistory
-            ? `<div style="margin-top:10px;text-align:center;"><button onclick="restoreFromHistorical(${c.id})">恢复至角色列表</button></div>`
+            ? `<div style="margin-top:10px;text-align:center;display:flex;gap:6px;justify-content:center;">
+                <button onclick="removeFromHistorical(${c.id})">移出历史</button>
+                <button onclick="exportBiography(${c.id})">导出生平</button>
+               </div>`
             : c.exitStatus
                 ? `<div style="margin-top:10px;text-align:center;"><button onclick="moveToHistorical(${c.id})">移入历史人物</button></div>`
                 : ''}
@@ -3506,18 +5022,74 @@ function moveToHistorical(charId) {
         c = (G.unavailableChars || []).find(c => c.id === charId);
         src = 'unavailable';
     }
+    if (!c) {
+        c = (G.deadChars || []).find(c => c.id === charId);
+        src = 'dead';
+    }
     if (!c || !c.exitStatus) return;
     G.historicalFigures.push(c);
     if (src === 'chars') {
         const idx = G.chars.indexOf(c);
         G.chars.splice(idx, 1);
-    } else {
+    } else if (src === 'unavailable') {
         const idx = G.unavailableChars.indexOf(c);
         G.unavailableChars.splice(idx, 1);
+    } else {
+        const idx = G.deadChars.indexOf(c);
+        G.deadChars.splice(idx, 1);
     }
     closeCharDetail();
     renderGame();
     addLog(`<span class="info">[历史]</span> ${c.name} 被移入历史人物。`);
+}
+
+function removeFromHistorical(charId) {
+    const idx = G.historicalFigures.findIndex(c => c.id === charId);
+    if (idx === -1) return;
+    G.historicalFigures.splice(idx, 1);
+    closeCharDetail();
+    closeHistory();
+    renderGame();
+    addLog(`<span class="info">[历史]</span> 已移除历史人物。`);
+}
+
+function exportBiography(charId) {
+    const c = (G.historicalFigures || []).find(x => x.id === charId);
+    if (!c) return;
+    const exitLabel = c.exitStatus === 'natural' ? '寿终正寝' : c.exitStatus === 'killed' ? '被杀' : c.exitStatus === 'retired' ? '隐退' : c.exitStatus === 'exiled' ? '流放' : '离场';
+    const birthYear = c.entryAge !== undefined ? (c.exitYear || 0) - c.age : '?';
+    let text = `姓名: ${c.name}\n`;
+    text += `性别: ${c.gender === 'm' ? '男' : '女'}\n`;
+    text += `职业: ${c.profession}\n`;
+    text += `出生: 纪元${birthYear}年\n`;
+    text += `入场年龄: ${c.entryAge !== undefined ? c.entryAge + '岁' : '?'}\n`;
+    text += `离场: 纪元${c.exitYear}年（${c.age}岁），${exitLabel}\n`;
+    text += `\n属性:\n`;
+    STAT_KEYS.forEach(k => { text += `  ${STAT_LABELS[k]}: ${c[k] || 0}\n`; });
+    if (c.parents && c.parents.length > 0) {
+        text += `\n父母: ${c.parents.map(id => findCharById(id)?.name || '?').join(' / ')}\n`;
+    }
+    if (c.children && c.children.length > 0) {
+        text += `子女: ${c.children.map(id => findCharById(id)?.name || '?').join(' / ')}\n`;
+    }
+    if (c.lovers && c.lovers.length > 0) {
+        text += `情人: ${c.lovers.map(id => findCharById(id)?.name || '?').join(' / ')}\n`;
+    }
+    if (c.lifeEvents && c.lifeEvents.length > 0) {
+        const startYear = c.lifeEvents.reduce((min, e) => Math.min(min, e.year), Infinity);
+        text += `\n生平:\n`;
+        const sorted = [...c.lifeEvents].sort((a, b) => a.year - b.year);
+        sorted.forEach(ev => {
+            const age = ev.year - (startYear - (c.entryAge || 0));
+            text += `  纪元${ev.year}年（${age}岁）${ev.desc}\n`;
+        });
+    }
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `${c.name}_生平.txt`;
+    a.click();
+    URL.revokeObjectURL(a.href);
 }
 
 function restoreFromHistorical(charId) {
@@ -3576,10 +5148,10 @@ function renderCompactDetail(c) {
         .sort((a, b) => b.val - a.val);
     const top4 = sorted.slice(0, 4);
     const row1 = top4.slice(0, 2).map(s =>
-        `<span style="color:${STAT_COLORS[s.key]};flex:1;">${STAT_LABELS[s.key]}:${statDesc(s.key, s.val)}</span>`
+        `<span style="color:${statColor(s.key, c)};flex:1;">${STAT_LABELS[s.key]}:${statDesc(s.key, s.val)}</span>`
     ).join('');
     const row2 = top4.slice(2, 4).map(s =>
-        `<span style="color:${STAT_COLORS[s.key]};flex:1;">${STAT_LABELS[s.key]}:${statDesc(s.key, s.val)}</span>`
+        `<span style="color:${statColor(s.key, c)};flex:1;">${STAT_LABELS[s.key]}:${statDesc(s.key, s.val)}</span>`
     ).join('');
 
     return `
@@ -3599,19 +5171,28 @@ function renderCompactDetail(c) {
 function selectChar(charId) {
     if (yearActionsDone) return;
     const c = G.chars.find(ch => ch.id === charId);
-    if (!c || c.isDead) return;
+    if (!c || c.isDead || c._actedThisYear) return;
 
     actingCharId = charId;
     renderCharList();
 
     const actionContent = document.getElementById('actionContent');
 
-    if (c.profession === '学者') {
+    const isAutoWorkProfession = ['学者','艺人','劳工','士兵','普侍'].includes(c.profession);
+    if (isAutoWorkProfession) {
+        const label = { 学者:'研究', 艺人:'表演', 劳工:'劳动', 士兵:'训练', 普侍:'服侍' }[c.profession] || '工作';
+        const description = {
+            学者: '每年自动进行研究，增加科技和国库收入',
+            艺人: '每年自动进行表演，增加文化和民心',
+            劳工: '每年自动进行劳动，增加生产和国库收入',
+            士兵: '每年自动进行训练，增加军事能力',
+            普侍: '每年自动进行服侍，增加人口但增加皇帝灾厄和天灾'
+        }[c.profession] || '是自动工作角色，无需手动操作。';
         actionContent.innerHTML = `
             <div class="char-detail-box">
                 ${renderCompactDetail(c)}
             </div>
-            <p id="actionPrompt" style="margin-top:8px;">${c.name} 是学者，自动进行研究，无需手动操作。</p>
+            <p id="actionPrompt" style="margin-top:8px;">${c.name} 是${c.profession}，${description}。</p>
             <div id="actionBtns"></div>
         `;
         return;
@@ -3629,7 +5210,42 @@ function selectChar(charId) {
     const actions = getActionsForAge(c.age, c)
         .filter(a => a.id !== 'exploit' || c.profession === '皇帝' || c.profession === '正宫')
         .filter(a => a.id !== 'appoint' || c.profession === '皇帝')
-        .filter(a => a.id !== 'bestowSurname' || c.profession === '皇帝');
+        .filter(a => a.id !== 'bestowSurname' || c.profession === '皇帝')
+        .filter(a => a.id !== 'transfer' || ((c.wel || 0) >= 5 && (['天子','大臣','储君'].includes(charClass(c)) || c.profession === '正宫')))
+        .filter(a => a.id !== 'pursue' || c.profession === '皇帝')
+        .filter(a => a.id !== 'propose' || c.profession === '皇帝')
+        .filter(a => a.id !== 'governPolicy' || c.profession === '皇帝');
+    // 宰相 has 理政, 执教 and 无所事事
+    if (c.profession === '宰相') {
+        const allowed = ['govern', 'teach', 'nothing'];
+        actions.length = 0;
+        if (allowed.includes('govern')) actions.push({ id: 'govern', label: '理政' });
+        if (allowed.includes('teach')) actions.push({ id: 'teach', label: '执教' });
+        if (allowed.includes('nothing')) actions.push({ id: 'nothing', label: '无所事事' });
+    }
+    // 休养者 only has limited actions
+    if (c.profession === '休养者') {
+        const allowed = ['retire', 'rest', 'elderlyCare', 'nothing'];
+        actions.length = 0;
+        if (allowed.includes('retire')) actions.push({ id: 'retire', label: '隐退' });
+        if (allowed.includes('rest')) actions.push({ id: 'rest', label: '养生' });
+        if (allowed.includes('elderlyCare')) actions.push({ id: 'elderlyCare', label: '养老' });
+        if (allowed.includes('nothing')) actions.push({ id: 'nothing', label: '无所事事' });
+    }
+    // 监工 has 压榨, 执教 and 无所事事
+    if (c.profession === '监工') {
+        actions.length = 0;
+        actions.push({ id: 'squeeze', label: '压榨' });
+        actions.push({ id: 'teach', label: '执教' });
+        actions.push({ id: 'nothing', label: '无所事事' });
+    }
+    // 将军 has 演兵, 执教 and 无所事事
+    if (c.profession === '将军') {
+        actions.length = 0;
+        actions.push({ id: 'drill', label: '演兵' });
+        actions.push({ id: 'teach', label: '执教' });
+        actions.push({ id: 'nothing', label: '无所事事' });
+    }
     actions.forEach(a => {
         const btn = document.createElement('button');
         btn.textContent = a.label;
@@ -3641,13 +5257,6 @@ function selectChar(charId) {
 }
 
 function labelActionBtns() {
-    const btns = document.querySelectorAll('#actionBtns button');
-    btns.forEach((btn, i) => {
-        if (btn.dataset.keyLabeled) return;
-        const keyLabel = i < 9 ? (i + 1).toString() : (i === 9 ? '⇧1' : `⇧${i - 8}`);
-        btn.textContent = `[${keyLabel}] ${btn.textContent}`;
-        btn.dataset.keyLabeled = '1';
-    });
 }
 
 // Auto-label action buttons when they change
@@ -3659,12 +5268,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function executeAction(c, actionId) {
     if (c.isDead) return;
+    currentActionId = actionId;
 
     if (needsLaborType(actionId)) {
         showSubAction(c, '劳动类型', [
             { id: 'labor_int', label: '智力劳动', execute: () => labor(c, 1) },
             { id: 'labor_sta', label: '体力劳动', execute: () => labor(c, 2) }
-        ]);
+        ], actionId);
         return;
     }
     if (needsPursueType(actionId)) {
@@ -3723,6 +5333,11 @@ function executeAction(c, actionId) {
         showDonatePrompt(c);
         return;
     }
+    if (actionId === 'govern') { showGovernOptions(c); return; }
+    if (actionId === 'teach') { showTeachTargets(c); return; }
+    if (actionId === 'governPolicy') { showGovernPolicy(c); return; }
+    if (actionId === 'squeeze') { showSqueezeOptions(c); return; }
+    if (actionId === 'drill') { showDrillOptions(c); return; }
 
     let resultHtml = '';
     switch (actionId) {
@@ -3735,10 +5350,10 @@ function executeAction(c, actionId) {
     }
 
     showActionResult(resultHtml);
-    finalizeCharAction(c);
+    finalizeCharAction(c, actionId);
 }
 
-function showSubAction(c, title, options) {
+function showSubAction(c, title, options, parentActionId) {
     const btnContainer = document.getElementById('actionBtns');
     document.getElementById('actionPrompt').textContent = `${c.name}: 选择${title}`;
     btnContainer.innerHTML = '';
@@ -3748,19 +5363,11 @@ function showSubAction(c, title, options) {
         btn.addEventListener('click', () => {
             const resultHtml = opt.execute();
             showActionResult(resultHtml);
-            finalizeCharAction(c);
+            finalizeCharAction(c, parentActionId || opt.id);
         });
         btnContainer.appendChild(btn);
     });
     labelActionBtns();
-}
-
-function labelActionBtns() {
-    const btns = document.querySelectorAll('#actionBtns button');
-    btns.forEach((btn, i) => {
-        const keyLabel = i < 9 ? (i + 1).toString() : (i === 9 ? '⇧1' : `⇧${i - 8}`);
-        btn.textContent = `[${keyLabel}] ${btn.textContent}`;
-    });
 }
 
 function showActionResult(html) {
@@ -3772,10 +5379,44 @@ function showActionResult(html) {
     document.getElementById('actionContent').appendChild(div);
 }
 
-function finalizeCharAction(c) {
-    c._actedThisYear = true;
+function doesActionConsumeTurn(actionId) {
+    if (!actionId) return true; // 没有actionId时默认消耗行动次数（向后兼容）
+    
+    // 以下行动不消耗行动次数
+    const noTurnActions = [
+        'donate',      // 理财
+        'appoint',     // 指派
+        'exploit',     // 剥削
+        'bestowSurname', // 赐姓
+        'retire',      // 隐退
+        'exile',       // 流放
+        'appointHeir', // 立嗣
+        // 招募人才相关行动（需要在具体函数中检查）
+    ];
+    return !noTurnActions.includes(actionId);
+}
 
-    const isAutoWork = p => ['学者','艺人','劳工','士兵'].includes(p);
+function finalizeCharAction(c, actionId) {
+    if (checkGameOver()) {
+        yearActionsDone = true;
+        document.getElementById('actionPrompt').textContent = '游戏结束。';
+        document.getElementById('actionBtns').innerHTML = '';
+        renderCharList();
+        renderGame();
+        return;
+    }
+    
+    // 优先使用传入的actionId，否则使用全局currentActionId
+    const effectiveActionId = actionId || currentActionId;
+    
+    // 如果该行动不消耗行动次数，则不标记为已行动
+    if (!doesActionConsumeTurn(effectiveActionId)) {
+        // 不消耗行动次数，不设置_actedThisYear
+    } else {
+        c._actedThisYear = true;
+    }
+
+    const isAutoWork = p => ['学者','艺人','劳工','士兵','普侍'].includes(p);
     const allDone = G.chars.every(ch => ch.isDead || ch._actedThisYear || isAutoWork(ch.profession));
     if (allDone) {
         yearActionsDone = true;
@@ -3791,11 +5432,12 @@ function finalizeCharAction(c) {
 }
 
 function beginYearActions() {
+    if (G.gameOver) return;
     yearActionsDone = false;
     actingCharId = null;
     G.chars.forEach(c => c._actedThisYear = false);
     // Auto-work professions skip manual action phase
-    G.chars.filter(c => !c.isDead && ['学者','艺人','劳工','士兵'].includes(c.profession)).forEach(c => {
+    G.chars.filter(c => !c.isDead && ['学者','艺人','劳工','士兵','普侍'].includes(c.profession)).forEach(c => {
         c._actedThisYear = true;
     });
     document.getElementById('actionPrompt').textContent = '点击一个角色来执行行动';
@@ -3855,10 +5497,16 @@ function runCoup(hqList) {
             }
         });
         champion.surname = G.imperialSurname;
-        champion.name = champion.surname + champion.givenname;
-
-        addLog(`<span class="info">[改朝]</span> 国姓改为「${G.imperialSurname}」，天命受损！`);
-        updateOrganization();
+        const doCoupSucc = (newName) => {
+            if (newName) {
+                champion.givenname = newName;
+            }
+            champion.name = champion.surname + champion.givenname;
+            addLog(`<span class="info">[改朝]</span> 国姓改为「${G.imperialSurname}」，天命受损！`);
+            updateOrganization();
+        };
+        showNameInputOverlay('新皇帝即位', champion.givenname, champion.gender, doCoupSucc);
+        return;
     } else if (coupResult >= 0) {
         addLog(`<span class="log-event">[暗流]</span> 朝中似有暗流涌动……`);
     } else {
@@ -3866,28 +5514,324 @@ function runCoup(hqList) {
     }
 }
 
+function processPushiAnnualActions() {
+    // 处理所有普侍的年度行为
+    const pushiChars = G.chars.filter(c => !c.isDead && !c.exitStatus && c.profession === '普侍');
+    
+    if (pushiChars.length === 0) return;
+    
+    // 每年初，递减所有角色的普侍生育冷却
+    G.chars.forEach(c => {
+        if (c._pushiBirthCooldown && c._pushiBirthCooldown > 0) {
+            c._pushiBirthCooldown--;
+        }
+    });
+    
+    pushiChars.forEach(pushi => {
+        // 1. 每位普侍每年使epop+1, cal_0+1d10, eapo+1d5
+        G.organization.current.epop += 1;
+        
+        const emperor = G.chars.find(c => c.id === G.leaderId);
+        if (emperor && !emperor.isDead) {
+            emperor.cal += d(10);
+        }
+        
+        G.organization.current.eapo += d(5);
+        
+        // 2. 生育逻辑
+        // 筛选可生育对象（仅G.chars中的活跃角色，不可用角色不参与交互）
+        const potentialPartners = G.chars.filter(c => 
+            !c.isDead && !c.exitStatus && 
+            c.id !== pushi.id && 
+            c.gender !== pushi.gender && 
+            c.profession !== '皇帝' && 
+            c.profession !== '正宫' && 
+            c.profession !== '普侍' &&
+            c.age >= 12 && c.age <= 50 &&
+            (!c._pushiBirthCooldown || c._pushiBirthCooldown <= 0)
+        );
+        
+        let shouldTryBirth = false;
+        let partner = null;
+
+        if (potentialPartners.length > 0 && pushi.age >= 12 && pushi.age <= 50) {
+            // 随机选择一名预计伴侣
+            partner = potentialPartners[Math.floor(Math.random() * potentialPartners.length)];
+
+            const enoughPartners = potentialPartners.length >= 3;
+            const newPartner = !pushi._lastPartnerId || partner.id !== pushi._lastPartnerId;
+
+            let prob = 0;
+            if (enoughPartners && newPartner) {
+                prob = 1.0;   // 两个条件均满足 → 100%
+            } else if (enoughPartners || newPartner) {
+                prob = 0.5;   // 仅满足一个条件 → 50%
+            } else {
+                prob = 0.25;  // 两个条件均不满足 → 25%
+            }
+
+            shouldTryBirth = Math.random() < prob;
+            pushi._lastPartnerId = partner.id;
+
+            const conditionStr = `条件：可育同伴${potentialPartners.length}个（${enoughPartners ? '≥3' : '<3'}）| ${newPartner ? '不同人' : '与上年重复'} → ${Math.round(prob * 100)}%概率`;
+            addLog(`<span class="info">[普侍生育]</span> ${pushi.name}: ${conditionStr}，${shouldTryBirth ? '触发检定' : '跳过生育'}。`);
+        } else if (pushi.age < 12 || pushi.age > 50) {
+            addLog(`<span class="info">[普侍生育]</span> ${pushi.name} 年龄${pushi.age}岁，不在生育年龄范围内（12-50岁）。`);
+        } else {
+            addLog(`<span class="info">[普侍生育]</span> ${pushi.name} 没有合适的生育对象。`);
+        }
+
+        if (shouldTryBirth && partner) {
+            const tier = 'd';
+            const tierName = CHILDBIRTH_TIER_LABELS[tier] || tier;
+            const mod = CHILDBIRTH_TIER_MOD[tier] || 0;
+            const sexSum = pushi.sex + partner.sex;
+            const target = Math.max(1, sexSum + mod);
+            const r = ch(target);
+            
+            const resultLabels = ['失败', '成功', '大成功', '超大成功'];
+            const resultStr = resultLabels[r] || '未知';
+            addLog(`<span class="info">[普侍生育检定]</span> ${pushi.name} 与 ${partner.name} 性吸引力${pushi.sex}+${partner.sex}=${sexSum}，d类修正${mod}，目标值${target}，结果：${resultStr}`);
+            
+            if (r >= 1) {
+                const child = generateChild(pushi, partner, tier, r);
+                
+                if (!G.unavailableChars) G.unavailableChars = [];
+                child._actedThisYear = true;
+                child.entryAge = child.age;
+                G.unavailableChars.push(child);
+                
+                const isGreat = r === 2;
+                const isExtreme = r === 3;
+                
+                const helLoss = isGreat ? 0 : d(4);
+                const staLoss = isExtreme ? 1 : d(4);
+                const calGain = isExtreme ? d(10, 2) : isGreat ? d(8, 2) : d(6, 2);
+                const conGain = d(6);
+                
+                pushi.hel = Math.max(1, (pushi.hel || 0) - helLoss);
+                partner.hel = Math.max(1, (partner.hel || 0) - helLoss);
+                pushi.sta = Math.max(1, (pushi.sta || 0) - staLoss);
+                partner.sta = Math.max(1, (partner.sta || 0) - staLoss);
+                if (calGain) pushi.cal = (pushi.cal || 0) + calGain;
+                if (conGain) pushi.con = (pushi.con || 0) + conGain;
+                
+                const sexLoss = d(10, 3);
+                pushi.sex = Math.max(1, (pushi.sex || 0) - sexLoss);
+                partner.sex = Math.max(1, (partner.sex || 0) - sexLoss);
+                
+                // 设置伴侣的普侍生育冷却（1d8年内不能再次与任何普侍生育）
+                partner._pushiBirthCooldown = d(8);
+                
+                let effects = [];
+                if (helLoss > 0) effects.push(`寿-${helLoss}`);
+                if (staLoss > 0) effects.push(`劳-${staLoss}`);
+                if (calGain > 0) effects.push(`灾+${calGain}`);
+                if (conGain > 0) effects.push(`魄+${conGain}`);
+                effects.push(`性-${sexLoss}`);
+                const effectStr = effects.length > 0 ? `（${effects.join('，')}）` : '';
+                
+                addLog(`<span class="success">[普侍生育]</span> ${pushi.name} 与 ${partner.name}（${tierName}）生育了 ${child.name}${effectStr}。${partner.name}进入${partner._pushiBirthCooldown}年冷却。`);
+            } else {
+                addLog(`<span class="fail">[普侍生育]</span> ${pushi.name} 与 ${partner.name} 生育失败，无子女产生。`);
+            }
+        }
+        
+        addLog(`<span style="color:#888">[普侍服侍]</span> ${pushi.name} 自动服侍（人口+1，皇帝灾厄+${d(10)}，天灾+${d(5)}）`);
+    });
+    
+    // 更新组织数据
+    updateOrganization();
+}
+
+function processAutoRetirement() {
+    // 储君/大臣归隐倾向降低
+    G.chars.filter(c => !c.isDead && !c.exitStatus).forEach(c => {
+        const cls = charClass(c);
+        if (cls === '储君') {
+            const reduction = d(8);
+            if (c._retireAccumulator) c._retireAccumulator = Math.max(0, c._retireAccumulator - reduction);
+        } else if (cls === '大臣') {
+            const reduction = d(4);
+            if (c._retireAccumulator) c._retireAccumulator = Math.max(0, c._retireAccumulator - reduction);
+        }
+    });
+
+    // 每年角色归隐判定
+    // 排除：皇帝、正宫、休养者、普侍
+    const candidates = G.chars.filter(c =>
+        !c.isDead && !c.exitStatus &&
+        c.age >= 18 &&
+        c.profession !== '皇帝' &&
+        c.profession !== '正宫' &&
+        c.profession !== '休养者' &&
+        c.profession !== '普侍'
+    );
+
+    candidates.forEach(c => {
+        // 归隐条件：wel<10、sta<10、有活跃子女、配偶已隐退、年龄>80、con<15
+        const hasActiveChildren = (c.children || []).some(childId => {
+            const child = G.chars.find(x => x.id === childId);
+            return child && !child.exitStatus && !child.isDead;
+        });
+        const spouseRetired = c.spouseId ? (G.unavailableChars || []).some(x => x.id === c.spouseId && x.exitStatus === 'retired') : false;
+
+        const conditions = [
+            (c.wel || 0) < 10,
+            (c.sta || 0) < 10,
+            hasActiveChildren,
+            spouseRetired,
+            c.age > 80,
+            (c.con || 0) < 15
+        ];
+
+        const anyMet = conditions.some(Boolean);
+        const wasTired = !!c._wasTired;
+
+        if (anyMet && !wasTired) {
+            // 第一次满足归隐条件
+            c._wasTired = true;
+            addLog(`<span style="color:#ffb74d;">[状态]</span> ${c.name} 有点累了。`);
+            return; // 今年不进行检定，只是提示
+        }
+
+        if (!anyMet && wasTired) {
+            // 不再满足任何归隐条件
+            c._wasTired = false;
+            c._retireAccumulator = 0;
+            addLog(`<span style="color:#81c784;">[状态]</span> ${c.name} 感觉不错。`);
+            return;
+        }
+
+        if (!anyMet) {
+            c._retireAccumulator = 0;
+            return;
+        }
+
+        // 持续满足条件，进行归隐检定
+        if (!c._retireAccumulator) c._retireAccumulator = 0;
+        const totalProb = 10 + c._retireAccumulator;
+        c._retireAccumulator += d(4);
+
+        if (Math.random() * 100 < totalProb) {
+            handleExit(c, 'retired');
+            const condDesc = [];
+            if ((c.wel || 0) < 10) condDesc.push(`财${c.wel}<10`);
+            if ((c.sta || 0) < 10) condDesc.push(`劳${c.sta}<10`);
+            if (hasActiveChildren) condDesc.push('有活跃子女');
+            if (spouseRetired) condDesc.push('配偶已隐退');
+            if (c.age > 80) condDesc.push(`年${c.age}>80`);
+            if ((c.con || 0) < 15) condDesc.push(`魄${c.con}<15`);
+            addLog(`<span class="info">[归隐]</span> ${c.name} 归隐（${condDesc.join('，')}）。`);
+        } else {
+            addLog(`<span style="color:#888;font-size:0.75rem;">[归隐检定]</span> ${c.name} 满足条件，归隐概率 ${totalProb}%，未触发。`);
+        }
+    });
+}
+
+const HAOQIANG_STATS = ['int','cha','sta','sex','psq','con','wel'];
+function isHaoQiang(ch) {
+    if (!ch || ch.isDead || ch.exitStatus || ch.id === G.leaderId) return false;
+    const emp = G.chars.find(e => e.id === G.leaderId);
+    if (!emp) return false;
+    let count = 0;
+    HAOQIANG_STATS.forEach(s => { if ((ch[s] || 0) > (emp[s] || 0)) count++; });
+    return count >= 3;
+}
+
 function nextYear() {
+    console.log('nextYear called, yearActionsDone:', yearActionsDone);
+    try {
+        if (!G) {
+            console.error('G is not defined');
+            alert('游戏数据未初始化');
+            return;
+        }
+        const prevLeaderId = G.leaderId;
     if (!yearActionsDone) {
-        const unfinished = G.chars.filter(c => !c.isDead && !c._actedThisYear && !['学者','艺人','劳工','士兵'].includes(c.profession));
+    const autoWorkProfessions = ['学者','艺人','劳工','士兵','普侍'];
+        const unfinished = G.chars.filter(c => !c.isDead && !c._actedThisYear && !autoWorkProfessions.includes(c.profession));
         if (unfinished.length > 0) {
-            if (!confirm(`还有角色未行动 (${unfinished.map(c => c.name).join(', ')})，确定要跳过吗？`)) return;
+            if (!confirm(`还有角色未行动 (${unfinished.map(c => c.name).join(', ')})，确定要跳过吗？`)) {
+                // 用户取消，保持当前年份
+                return;
+            }
+            // 用户确认跳过，设置yearActionsDone为true，避免下一年再次询问
+            yearActionsDone = true;
         }
     }
 
     G.chars.forEach(c => c._actedThisYear = false);
     G.time += 1;
+
+    // 压榨效果时效处理
+    if (G._squeezeEffects) {
+        G._squeezeEffects = G._squeezeEffects.filter(eff => {
+            if (G.time >= eff.endYear) {
+                if (eff.type === 'prd') {
+                    G.organization.current.aprd = Math.max(0, (G.organization.current.aprd || 0) - eff.amount);
+                } else {
+                    G.organization.current.apop = Math.max(0, (G.organization.current.apop || 0) - eff.amount);
+                }
+                addLog(`<span style="color:#81c784">[压榨到期]</span> ${eff.type === 'prd' ? '生产' : '人口'}提升效果已消退（-${eff.amount}）。`);
+                return false;
+            }
+            return true;
+        });
+    }
+
+    // 理政效果时效处理
+    if (G._governEffects) {
+        G._governEffects = G._governEffects.filter(eff => {
+            if (G.time >= eff.endYear) {
+                if (eff.type === 'tech') {
+                    G.organization.current.atec = Math.max(0, (G.organization.current.atec || 0) - eff.amount);
+                } else {
+                    G.organization.current.acul = Math.max(0, (G.organization.current.acul || 0) - eff.amount);
+                }
+                addLog(`<span style="color:#4fc3f7">[理政到期]</span> ${eff.type === 'tech' ? '科技' : '文化'}提升效果已消退（-${eff.amount}）。`);
+                return false;
+            }
+            return true;
+        });
+    }
+
+    // 演兵效果时效处理
+    if (G._drillEffects) {
+        G._drillEffects = G._drillEffects.filter(eff => {
+            if (G.time >= eff.endYear) {
+                G.organization.current.amil = Math.max(0, (G.organization.current.amil || 0) - eff.amount);
+                addLog(`<span style="color:#e94560">[演兵到期]</span> 军事提升效果已消退（-${eff.amount}）。`);
+                return false;
+            }
+            return true;
+        });
+    }
+
     G.chars.forEach(c => {
         if (!c.exitStatus) c.age += 1;
     });
+    const movedToDead = [];
     (G.unavailableChars || []).forEach(c => {
         c.age += 1;
-        if (c.age >= c.hel && !c.exitStatus) {
+        if (c.age >= c.hel) {
             c.exitStatus = 'natural';
             c.exitYear = G.time;
             if (c.entryAge === undefined) c.entryAge = c.age;
             logLifeEvent(c, 'exit', '寿终正寝');
+            logFamilyExitEvent(c, '寿终正寝');
             addLog(`<span class="log-death">[死亡]</span> 不可用角色 ${c.name} 寿终正寝。`);
+            movedToDead.push(c);
         }
+    });
+    movedToDead.forEach(c => {
+        const i = G.unavailableChars.indexOf(c);
+        if (i >= 0) G.unavailableChars.splice(i, 1);
+        if (!G.deadChars) G.deadChars = [];
+        G.deadChars.push(c);
+    });
+    (G.deadChars || []).forEach(c => {
+        c.age += 1;
     });
     // Talent market characters age
     (G.talentMarket || []).forEach(t => {
@@ -3921,7 +5865,9 @@ function nextYear() {
     G.chars.forEach(c => {
         if (!c.exitStatus && !c.isDead) {
             const checkMsgs = overallCheck(c);
-            checkMsgs.forEach(m => addLog(`${c.name}: ${m}`));
+            if (checkMsgs.length > 0) {
+                checkMsgs.forEach(m => addLog(`${c.name}: ${m}`));
+            }
         }
     });
 
@@ -4002,7 +5948,7 @@ function nextYear() {
             G.organization.current.ecul += 1;
             const emp = G.chars.find(c => c.id === G.leaderId);
             if (emp && !emp.isDead) emp.sex += 1;
-            G.chars.filter(x => (x.profession === '正宫' || x.profession === '侧室') && !x.isDead).forEach(x => x.sex += 1);
+            G.chars.filter(x => (x.profession === '正宫' || isConsort(x)) && !x.isDead).forEach(x => x.sex += 1);
             msg = `表演大成功（经+1 魅+${chG} 财+${wG} 劳+${stG} 文化+1 帝性+1 后宫性+1）`;
         } else {
             const chG = d(8), wG = d(6), stG = d(6), eculG = d(4);
@@ -4011,7 +5957,7 @@ function nextYear() {
             G.organization.current.ecul += eculG;
             const emp = G.chars.find(c => c.id === G.leaderId);
             if (emp && !emp.isDead) emp.sex += empSexG;
-            G.chars.filter(x => (x.profession === '正宫' || x.profession === '侧室') && !x.isDead).forEach(x => x.sex += haremSexG);
+            G.chars.filter(x => (x.profession === '正宫' || isConsort(x)) && !x.isDead).forEach(x => x.sex += haremSexG);
             logLifeEvent(art, 'dice_crit', '表演检定特大成功');
             msg = `表演牛逼！（经+${expG} 魅+${chG} 财+${wG} 劳+${stG} 帝性+${empSexG} 后宫性+${haremSexG} 文化+${eculG}）`;
         }
@@ -4079,30 +6025,196 @@ function nextYear() {
             msg = `训练牛逼！（经+${expG} 体+${psqG} 魄+${conG} 军事+${emilG} 帝魄+${empConG}）`;
         }
         addLog(`<span style="color:#e94560">[士兵]</span> ${sol.name}: ${msg}`);
-    });
-
-    // ---- Coup Check ----
-    const HAOQIANG_STATS = ['int','cha','sta','sex','psq','con','wel'];
-    function isHaoQiang(ch) {
-        if (ch.isDead || ch.exitStatus || ch.id === G.leaderId) return false;
-        const emp = G.chars.find(e => e.id === G.leaderId);
-        if (!emp) return false;
-        let count = 0;
-        HAOQIANG_STATS.forEach(s => { if ((ch[s] || 0) > (emp[s] || 0)) count++; });
-        return count >= 3;
+});
+ 
+     // === 剥削系统 ===
+     const aliveChars = G.chars.filter(c => !c.isDead && !c.exitStatus);
+     
+     // 宰相剥削学者、艺人、无业者
+     const chancellor = aliveChars.find(c => c.profession === '宰相');
+     if (chancellor) {
+         // 目标职业
+         const targets = aliveChars.filter(c => 
+             ['学者', '艺人', '无业者'].includes(c.profession) && c.id !== chancellor.id
+         );
+         if (targets.length > 0) {
+             // 1. 从财富最高的3人中选2人
+             const top3 = targets.sort((a, b) => b.wel - a.wel).slice(0, 3);
+             const picks1 = [];
+             if (top3.length > 0) {
+                 // 从top3中随机选2人（可能重复）
+                 for (let i = 0; i < 2; i++) {
+                     if (top3.length > 0) {
+                         const idx = Math.floor(Math.random() * top3.length);
+                         picks1.push(top3[idx]);
+                     }
+                 }
+             }
+             // 2. 从全部目标中随机选1人
+             const picks2 = targets.length > 0 ? [targets[Math.floor(Math.random() * targets.length)]] : [];
+             
+             const allPicks = [...new Set([...picks1, ...picks2])]; // 去重
+             allPicks.forEach(victim => {
+                 if (Math.random() < 0.5) {  // 50%概率实施剥削
+                     const amount = d(4) + d(4);  // 2d4
+                     if (victim.wel >= amount) {
+                         victim.wel -= amount;
+                         chancellor.wel += amount;
+                         chancellor.cal += d(4);
+                         chancellor.con += d(8);
+                         addLog(`<span style="color:#ff9800">[剥削]</span> 宰相 ${chancellor.name} 剥削 ${victim.name} ${amount}财 (智+${d(4)}, 魄+${d(8)})`);
+                     } else {
+                         const actual = victim.wel;
+                         victim.wel = 0;
+                         chancellor.wel += actual;
+                         chancellor.cal += d(4);
+                         chancellor.con += d(8);
+                         addLog(`<span style="color:#ff9800">[剥削]</span> 宰相 ${chancellor.name} 剥削 ${victim.name} ${actual}财 (智+${d(4)}, 魄+${d(8)})`);
+                     }
+                 }
+             });
+         }
+     }
+ 
+     // 监工剥削劳工、普侍、无业者
+     const overseer = aliveChars.find(c => c.profession === '监工');
+     if (overseer) {
+         const targets = aliveChars.filter(c => 
+             ['劳工', '普侍', '无业者'].includes(c.profession) && c.id !== overseer.id
+         );
+         if (targets.length > 0) {
+             const top3 = targets.sort((a, b) => b.wel - a.wel).slice(0, 3);
+             const picks1 = [];
+             if (top3.length > 0) {
+                 for (let i = 0; i < 2; i++) {
+                     if (top3.length > 0) {
+                         const idx = Math.floor(Math.random() * top3.length);
+                         picks1.push(top3[idx]);
+                     }
+                 }
+             }
+             const picks2 = targets.length > 0 ? [targets[Math.floor(Math.random() * targets.length)]] : [];
+             
+             const allPicks = [...new Set([...picks1, ...picks2])];
+             allPicks.forEach(victim => {
+                 if (Math.random() < 0.5) {
+                     const amount = d(4) + d(4);
+                     if (victim.wel >= amount) {
+                         victim.wel -= amount;
+                         overseer.wel += amount;
+                         overseer.cal += d(4);
+                         overseer.con += d(8);
+                         addLog(`<span style="color:#81c784">[剥削]</span> 监工 ${overseer.name} 剥削 ${victim.name} ${amount}财 (智+${d(4)}, 魄+${d(8)})`);
+                     } else {
+                         const actual = victim.wel;
+                         victim.wel = 0;
+                         overseer.wel += actual;
+                         overseer.cal += d(4);
+                         overseer.con += d(8);
+                         addLog(`<span style="color:#81c784">[剥削]</span> 监工 ${overseer.name} 剥削 ${victim.name} ${actual}财 (智+${d(4)}, 魄+${d(8)})`);
+                     }
+                 }
+             });
+         }
+     }
+ 
+     // 将军剥削士兵、无业者
+     const general = aliveChars.find(c => c.profession === '将军');
+     if (general) {
+         const targets = aliveChars.filter(c => 
+             ['士兵', '无业者'].includes(c.profession) && c.id !== general.id
+         );
+         if (targets.length > 0) {
+             const top3 = targets.sort((a, b) => b.wel - a.wel).slice(0, 3);
+             const picks1 = [];
+             if (top3.length > 0) {
+                 for (let i = 0; i < 2; i++) {
+                     if (top3.length > 0) {
+                         const idx = Math.floor(Math.random() * top3.length);
+                         picks1.push(top3[idx]);
+                     }
+                 }
+             }
+             const picks2 = targets.length > 0 ? [targets[Math.floor(Math.random() * targets.length)]] : [];
+             
+             const allPicks = [...new Set([...picks1, ...picks2])];
+             allPicks.forEach(victim => {
+                 if (Math.random() < 0.5) {
+                     const amount = d(4) + d(4);
+                     if (victim.wel >= amount) {
+                         victim.wel -= amount;
+                         general.wel += amount;
+                         general.cal += d(4);
+                         general.con += d(8);
+                         addLog(`<span style="color:#e94560">[剥削]</span> 将军 ${general.name} 剥削 ${victim.name} ${amount}财 (智+${d(4)}, 魄+${d(8)})`);
+                     } else {
+                         const actual = victim.wel;
+                         victim.wel = 0;
+                         general.wel += actual;
+                         general.cal += d(4);
+                         general.con += d(8);
+                         addLog(`<span style="color:#e94560">[剥削]</span> 将军 ${general.name} 剥削 ${victim.name} ${actual}财 (智+${d(4)}, 魄+${d(8)})`);
+                     }
+                 }
+             });
+         }
+     }
+ 
+     // ---- Sanity check: multiple emperors ----
+     const emperors = G.chars.filter(c => c.profession === '皇帝' && !c.exitStatus);
+    if (emperors.length > 1) {
+        addLog(`<span class="log-death">[错误]</span> 检测到多个皇帝（${emperors.map(e => e.name).join('、')}），请报告开发者！`);
     }
 
+    // If emperor died/retired this year and there's a 储君, coup is blocked
+    const hasHeir = G.chars.some(x => !x.exitStatus && (x._class === '储君' || (x.parents && x.parents.includes(G.leaderId))));
+    const leaderChanged = prevLeaderId !== G.leaderId;
+
+    // ---- Coup Check ----
     const hqList = G.chars.filter(isHaoQiang);
+
+    // 豪强变动检测
+    const prevIds = G._prevHaoQiangIds || [];
+    const curIds = hqList.map(h => h.id);
     hqList.forEach(hq => {
-        const bonus = d(4) - 2 + (G.coupYears || 0);
-        hq.con += bonus;
+        if (!prevIds.includes(hq.id)) {
+            addLog(`<span style="color:#ff9800">[警示]</span> ${hq.name} 好像在想着什么……`);
+        }
+    });
+    prevIds.forEach(pid => {
+        if (!curIds.includes(pid)) {
+            const former = G.chars.find(c => c.id === pid) || (G.deadChars || []).find(c => c.id === pid) || (G.unavailableChars || []).find(c => c.id === pid);
+            if (former) {
+                addLog(`<span style="color:#4caf50">[忠义]</span> ${former.name} 只效忠于国家。`);
+            }
+        }
+    });
+    G._prevHaoQiangIds = curIds;
+
+    // 最高 con 豪强每回合尊敬
+    if (hqList.length > 0) {
+        const topHq = hqList.reduce((a, b) => ((a.con || 0) >= (b.con || 0) ? a : b));
+        addLog(`<span style="color:#ff9800">[敬畏]</span> 有些人在尊敬${topHq.name}。`);
+    }
+
+    hqList.forEach(hq => {
+        if ((G.coupYears || 0) % 5 === 0) {
+            hq.con += d(4);
+        }
     });
 
     G.coupCooldown = (G.coupCooldown || 0) - 1;
     if (G.coupCooldown <= 0 && hqList.length >= 2) {
-        runCoup(hqList);
-        G.coupCooldown = d(10);
-        G.coupYears = 0;
+        if (leaderChanged && hasHeir) {
+            const heir = G.chars.find(x => !x.exitStatus && (x._class === '储君' || (x.parents && x.parents.includes(G.leaderId))));
+            addLog(`<span class="log-death">[政变]</span> 政变者蠢蠢欲动，但储君 ${heir ? heir.name : ''} 已稳坐皇位，乱党无隙可乘。`);
+            G.coupCooldown = d(10);
+            G.coupYears = 0;
+        } else {
+            runCoup(hqList);
+            G.coupCooldown = d(10);
+            G.coupYears = 0;
+        }
     } else {
         G.coupYears = (G.coupYears || 0) + 1;
     }
@@ -4116,6 +6228,10 @@ function nextYear() {
                 const c1 = G.chars.find(x => x.id === e.id1);
                 const c2 = G.chars.find(x => x.id === e.id2);
                 if (c1 && c2 && !c1.exitStatus && !c2.exitStatus && !c1.married && !c2.married) {
+                    if (['皇帝','正宫','普侍'].includes(c1.profession) || isConsort(c1) || ['皇帝','正宫','普侍'].includes(c2.profession) || isConsort(c2)) {
+                        resolved.push(e);
+                        return;
+                    }
                     c1.married = true;
                     c1.spouseId = c2.id;
                     c2.married = true;
@@ -4145,13 +6261,13 @@ function nextYear() {
     const engagedIds = new Set();
     if (G.engagements) G.engagements.forEach(e => { engagedIds.add(e.id1); engagedIds.add(e.id2); });
     const pairingPool = G.chars.filter(c =>
-        !c.isDead && !c.exitStatus && c.profession !== '普侍' && c.profession !== '侧室' && !c.married && c.age >= 12 && !engagedIds.has(c.id)
+        !c.isDead && !c.exitStatus && c.profession !== '皇帝' && c.profession !== '正宫' && !isConsort(c) && c.profession !== '普侍' && !c.married && c.age >= 12 && !engagedIds.has(c.id)
     );
     if (pairingPool.length > 0) {
         const initiator = pairingPool[Math.floor(Math.random() * pairingPool.length)];
         if (d(100) <= 25) {
             const candidates = G.chars.filter(x =>
-                !x.isDead && !x.exitStatus && x.id !== initiator.id && x.gender !== initiator.gender && !x.married && x.age >= 12 && x.profession !== '普侍' && x.profession !== '侧室' && x.id !== G.leaderId
+                !x.isDead && !x.exitStatus && x.id !== initiator.id && x.gender !== initiator.gender && !x.married && x.age >= 12 && x.profession !== '皇帝' && x.profession !== '正宫' && !isConsort(x) && x.profession !== '普侍'
             );
             if (candidates.length > 0) {
                 const partner = candidates[Math.floor(Math.random() * candidates.length)];
@@ -4226,12 +6342,55 @@ function nextYear() {
     cur.btre += cur.etre;
     cur.etre = 0;
 
+    // Process 普侍 annual actions
+    processPushiAnnualActions();
+
+    // ---- Annual 休养者 processing ----
+    const restorers = G.chars.filter(c => !c.isDead && !c.exitStatus && c.profession === '休养者');
+    if (restorers.length > 0) {
+        const emperor = G.chars.find(c => c.id === G.leaderId);
+        const cur = G.organization.current;
+        const costThreshold = restorers.length * 4;
+        let totalPaid = 0;
+        if (cur.btre >= costThreshold) {
+            restorers.forEach(r => {
+                const payment = d(4);
+                r.wel = (r.wel || 0) + payment;
+                cur.btre -= payment;
+                totalPaid += payment;
+                if (emperor && !emperor.isDead) {
+                    emperor.cal -= 1;
+                }
+                G.mdtRestorerAccum = (G.mdtRestorerAccum || 0) + 1;
+                addLog(`<span style="color:#a5d6a7">[休养者]</span> ${r.name} 获得休养金 ${payment}财（国库余${cur.btre}，皇帝cal-1，mdt基础+1）。`);
+            });
+            addLog(`<span style="color:#a5d6a7">[休养者]</span> 共 ${restorers.length} 位休养者，支付 ${totalPaid} 财休养金。`);
+        } else {
+            addLog(`<span style="color:#ffab91">[休养者]</span> 国库不足（${cur.btre} < ${costThreshold}），所有休养者未获得休养金。`);
+        }
+    }
+
+    // Process auto-retirement for eligible characters
+    processAutoRetirement();
+
     updateOrganization();
+
+    if (checkGameOver()) {
+        yearActionsDone = true;
+        actingCharId = null;
+        updateOrganization();
+        addLog(`<span class="log-death">[终结]</span> 游戏结束。`);
+        return;
+    }
 
     yearActionsDone = false;
     actingCharId = null;
     beginYearActions();
     addLog(`新的纪元开始了。`);
+    } catch (e) {
+        console.error('nextYear error:', e);
+        alert('下一年操作出错: ' + e.message);
+    }
 }
 
 // ---- Save / Load ----
@@ -4242,6 +6401,8 @@ function saveGame() {
     G.chars.forEach(c => delete c._unplayable);
     (G.unavailableChars || []).forEach(c => delete c._actedThisYear);
     (G.unavailableChars || []).forEach(c => delete c._unplayable);
+    (G.deadChars || []).forEach(c => delete c._actedThisYear);
+    (G.deadChars || []).forEach(c => delete c._unplayable);
     const key = 'pslavery_save_' + G.playerId;
     localStorage.setItem(key, JSON.stringify(G));
     addLog('<span class="info">[存档]</span> 游戏已保存。');
@@ -4254,6 +6415,8 @@ function exportSave() {
     G.chars.forEach(c => delete c._unplayable);
     (G.unavailableChars || []).forEach(c => delete c._actedThisYear);
     (G.unavailableChars || []).forEach(c => delete c._unplayable);
+    (G.deadChars || []).forEach(c => delete c._actedThisYear);
+    (G.deadChars || []).forEach(c => delete c._unplayable);
     const now = new Date();
     const ds = now.toISOString().slice(0,10).replace(/-/g,'');
     const ts = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}${String(now.getSeconds()).padStart(2,'0')}`;
@@ -4295,17 +6458,24 @@ function handleImportFile(e) {
                     delete c._unplayable;
                     G.unavailableChars.push(c);
                 } else {
+                    if (c.profession === '侧室') c.profession = '无业者';
                     delete c._unplayable;
                     G.chars.push(c);
                 }
             });
-            (G.unavailableChars || []).forEach(c => delete c._unplayable);
-            (G.historicalFigures || []).forEach(c => delete c._unplayable);
+            (G.unavailableChars || []).forEach(c => { delete c._unplayable; if (c.profession === '侧室') c.profession = '无业者'; });
+            (G.historicalFigures || []).forEach(c => { delete c._unplayable; if (c.profession === '侧室') c.profession = '无业者'; });
+            (G.deadChars || []).forEach(c => { delete c._unplayable; if (c.profession === '侧室') c.profession = '无业者'; });
+            // Migrate old unavailableChars: natural/killed → deadChars
+            if (!G.deadChars) G.deadChars = [];
+            const deadMoved = (G.unavailableChars || []).filter(c => c.exitStatus === 'natural' || c.exitStatus === 'killed');
+            deadMoved.forEach(c => { const i = G.unavailableChars.indexOf(c); if (i >= 0) G.unavailableChars.splice(i, 1); G.deadChars.push(c); });
             (G.chars || []).forEach(c => {
                 c._actedThisYear = false;
                 if (c.exitStatus === undefined) c.exitStatus = null;
                 if (c.entryAge === undefined) c.entryAge = c.exitStatus ? c.age : 0;
                 if (c.exitYear === undefined) c.exitYear = null;
+                if (c.profession === '侧室') c.profession = '无业者';
                 if (!c.surname) {
                     if (c.name && c.name.length >= 2) {
                         c.surname = c.name[0];
@@ -4324,6 +6494,7 @@ function handleImportFile(e) {
                 G.imperialSurname = leader ? leader.surname : '张';
             }
             if (G.mdtPenalty === undefined) G.mdtPenalty = 0;
+            if (G.mdtRestorerAccum === undefined) G.mdtRestorerAccum = 0;
             if (!G.founderSurname) G.founderSurname = G.imperialSurname;
             if (!G.initialCharName) G.initialCharName = (G.chars && G.chars[0]) ? G.chars[0].name : (G.founderSurname + '帝');
             if (G.coupCooldown === undefined) G.coupCooldown = 0;
@@ -4331,6 +6502,7 @@ function handleImportFile(e) {
             if (!G.historicalFigures) G.historicalFigures = [];
             if (!G.engagements) G.engagements = [];
             if (!G.unavailableChars) G.unavailableChars = [];
+            if (!G.deadChars) G.deadChars = [];
             if (!G.organization) initOrganization();
             const cur = G.organization && G.organization.current;
             if (cur) {
@@ -4351,6 +6523,10 @@ function handleImportFile(e) {
                         { id: 'liulin', name: '柳林居委会', type: 'admin', conquered: false }
                     ]
                 };
+            }
+            if (!G.headquarterName) G.headquarterName = '办公室';
+            if (G.mapData && !G.mapData.targets.some(t => t.id === 'headquarter')) {
+                G.mapData.targets.unshift({ id: 'headquarter', name: G.headquarterName, type: 'admin', conquered: true });
             }
             updateOrganization();
             showScreen('screenGame');
@@ -4396,6 +6572,7 @@ function doLoad(key) {
             if (c.exitStatus === undefined) c.exitStatus = null;
             if (c.entryAge === undefined) c.entryAge = c.exitStatus ? c.age : 0;
             if (c.exitYear === undefined) c.exitYear = null;
+            if (c.profession === '侧室') c.profession = '无业者';
             if (!c.surname) {
                 // Backward compat: extract from c.name
                 if (c.name && c.name.length >= 2) {
@@ -4423,13 +6600,19 @@ function doLoad(key) {
                 G.chars.push(c);
             }
         });
-        (G.unavailableChars || []).forEach(c => delete c._unplayable);
-        (G.historicalFigures || []).forEach(c => delete c._unplayable);
+        (G.unavailableChars || []).forEach(c => { delete c._unplayable; if (c.profession === '侧室') c.profession = '无业者'; });
+        (G.historicalFigures || []).forEach(c => { delete c._unplayable; if (c.profession === '侧室') c.profession = '无业者'; });
+        (G.deadChars || []).forEach(c => { delete c._unplayable; if (c.profession === '侧室') c.profession = '无业者'; });
+        // Migrate old unavailableChars: natural/killed → deadChars
+        if (!G.deadChars) G.deadChars = [];
+        const deadMoved = (G.unavailableChars || []).filter(c => c.exitStatus === 'natural' || c.exitStatus === 'killed');
+        deadMoved.forEach(c => { const i = G.unavailableChars.indexOf(c); if (i >= 0) G.unavailableChars.splice(i, 1); G.deadChars.push(c); });
         if (!G.imperialSurname) {
             const leader = G.chars.find(c => c.id === G.leaderId);
             G.imperialSurname = leader ? leader.surname : '张';
         }
         if (G.mdtPenalty === undefined) G.mdtPenalty = 0;
+        if (G.mdtRestorerAccum === undefined) G.mdtRestorerAccum = 0;
         if (!G.founderSurname) G.founderSurname = G.imperialSurname;
         if (!G.initialCharName) G.initialCharName = G.chars[0]?.name || G.founderSurname + '帝';
         if (G.coupCooldown === undefined) G.coupCooldown = 0;
@@ -4437,6 +6620,7 @@ function doLoad(key) {
         if (!G.historicalFigures) G.historicalFigures = [];
         if (!G.engagements) G.engagements = [];
         if (!G.unavailableChars) G.unavailableChars = [];
+        if (!G.deadChars) G.deadChars = [];
         if (!G.organization) initOrganization();
         const cur = G.organization.current;
         ['btec','etec','bcul','ecul','bprd','eprd','bpop','epop','bmil','emil','binf','einf','btre','etre','bapo','eapo','bmdt','emdt'].forEach(k => {
@@ -4456,6 +6640,10 @@ function doLoad(key) {
                     { id: 'liulin', name: '柳林居委会', type: 'admin', conquered: false }
                 ]
             };
+        }
+        if (!G.headquarterName) G.headquarterName = '办公室';
+        if (G.mapData && !G.mapData.targets.some(t => t.id === 'headquarter')) {
+            G.mapData.targets.unshift({ id: 'headquarter', name: G.headquarterName, type: 'admin', conquered: true });
         }
         updateOrganization();
         showScreen('screenGame');
@@ -4550,6 +6738,47 @@ function addLog(html) {
 
 function clearLog() {
     document.getElementById('logContent').innerHTML = '';
+}
+
+function exportLog() {
+    const entries = document.querySelectorAll('#logContent .log-entry');
+    const data = [];
+    entries.forEach(e => data.push(e.innerHTML));
+    const blob = new Blob([JSON.stringify(data)], { type: 'text/plain;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'logs.txt';
+    a.click();
+    URL.revokeObjectURL(a.href);
+}
+
+function importLog() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.txt';
+    input.onchange = function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(ev) {
+            try {
+                const data = JSON.parse(ev.target.result);
+                if (!Array.isArray(data)) throw new Error('格式错误');
+                const container = document.getElementById('logContent');
+                data.forEach(html => {
+                    const entry = document.createElement('div');
+                    entry.className = 'log-entry';
+                    entry.innerHTML = html;
+                    container.appendChild(entry);
+                });
+                container.scrollTop = container.scrollHeight;
+            } catch (err) {
+                alert('导入失败：文件格式不正确');
+            }
+        };
+        reader.readAsText(file);
+    };
+    input.click();
 }
 
 function toggleLayout() {
