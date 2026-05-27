@@ -125,6 +125,7 @@
                             <button class="collapse-btn" onclick="toggleMap()">▶</button>
                         </div>
                         <div id="mapContent"></div>
+                        <div id="mapAction" style="padding:8px 12px 10px;border-top:1px solid #0f3460;display:none;"></div>
                     </div>
                     <div id="historyPanel">
                         <div class="panel-header">
@@ -142,6 +143,15 @@
                         <button class="overlay-close" onclick="closeCharDetail()">✕</button>
                     </div>
                     <div id="charDetailContent"></div>
+                </div>
+            </div>
+            <div id="targetDetailOverlay" class="overlay" style="display:none;">
+                <div class="overlay-content" style="max-width:500px;">
+                    <div class="overlay-header">
+                        <h2 id="targetDetailTitle">目标属性</h2>
+                        <button class="overlay-close" onclick="closeTargetDetail()">✕</button>
+                    </div>
+                    <div id="targetDetailContent"></div>
                 </div>
             </div>
             <div id="orgBreakdownOverlay" class="overlay" style="display:none;">

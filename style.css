@@ -1011,6 +1011,12 @@ header h1 {
     color: #66bb6a;
 }
 
+#mapContent .map-target-stats {
+    font-size: 0.65rem;
+    margin-top: 2px;
+    color: #aaa;
+}
+
 #logContent {
     background: #0a0a1a;
     border-radius: 5px;

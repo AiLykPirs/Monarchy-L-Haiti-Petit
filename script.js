@@ -102,6 +102,122 @@ const CLASS_MAP = {
 
 const CLASS_COLORS = { '天子': '#e94560', '后宫': '#f48fb1', '储君': '#ffd54f', '大臣': '#4fc3f7', '军工': '#81c784', '平民': '#a0a0b0', '贱民': '#888' };
 
+const TARGET_SETTINGS = {
+    '科技大学': { tec:[180,'+4+-1d8'], cul:[100,'+-1d4'], prd:[120,'+-1d4+1'], pop:[60,'+-1d4'], mil:[80,'+-1d4'], inf:[80,'+-1d4'], tre:[50,'+-1d8'], cal:[100,'+-1d4'], mdtBase:400 },
+    '财经大学': { tec:[130,'+-1d4-2'], cul:[120,'+-1d4+1d6-3'], prd:[90,'+-1d4-1'], pop:[60,'+-1d4'], mil:[80,'+-1d4'], inf:[70,'+-1d4'], tre:[150,'+-1d4+2'], cal:[100,'+-1d4'], mdtBase:400 },
+    '玛钢厂':  { tec:[150,'+1+-1d4'], cul:[80,'+-1d4-1d6+2'], prd:[150,'+-1d4+2d4-1'], pop:[60,'+-1d4'], mil:[120,'+-1d4+1'], inf:[70,'+-1d4'], tre:[50,'+-1d8'], cal:[150,'+-1d8+1d20'], mdtBase:400 },
+    '第四医院': { tec:[130,'+-1d4-2'], cul:[150,'+-1d4+2d6-3'], prd:[120,'+-1d4+1'], pop:[80,'+-1d4+2'], mil:[70,'+-1d4'], inf:[80,'+-1d4'], tre:[50,'+-1d8'], cal:[80,'+-1d4-2'], mdtBase:450 },
+    '东海居委会':  { tec:[100,'+-1d6-5'], cul:[100,'+-1d4'], prd:[120,'+-1d4+1'], pop:[50,'+-1d4-1'], mil:[150,'+-1d4+1d6+1'], inf:[90,'+-1d4+1'], tre:[70,'+-1d6'], cal:[130,'+-1d4+1'], mdtBase:450 },
+    '陈塘庄居委会':{ tec:[100,'+-1d6-5'], cul:[100,'+-1d4'], prd:[120,'+-1d4+1'], pop:[50,'+-1d4-1'], mil:[150,'+-1d4+1d6+1'], inf:[90,'+-1d4+1'], tre:[70,'+-1d6'], cal:[130,'+-1d4+1'], mdtBase:450 },
+    '柳林居委会':  { tec:[100,'+-1d6-5'], cul:[100,'+-1d4'], prd:[120,'+-1d4+1'], pop:[50,'+-1d4-1'], mil:[150,'+-1d4+1d6+1'], inf:[90,'+-1d4+1'], tre:[70,'+-1d6'], cal:[130,'+-1d4+1'], mdtBase:450 }
+};
+
+// 征服条件: 7项条件固定为 tec/cul/prd/pop/mil/inf/tre
+const CONQUEST_CONDS = [
+    { name:'科技', field:'tec' }, { name:'文化', field:'cul' }, { name:'生产', field:'prd' },
+    { name:'人口', field:'pop' }, { name:'军事', field:'mil' }, { name:'影响', field:'inf' }, { name:'银库', field:'tre' }
+];
+// 各目标的关键条件索引 (0-based)
+const CONQUEST_KEYS = {
+    '科技大学': [0], '财经大学': [6], '玛钢厂': [2], '第四医院': [3],
+    '东海居委会': [4,5,6], '陈塘庄居委会': [4,5,6], '柳林居委会': [4,5,6]
+};
+
+
+function parseDice(s) {
+    if (s.includes('d')) {
+        const [count, size] = s.split('d');
+        return d(parseInt(size), parseInt(count) || 1);
+    }
+    return parseInt(s) || 0;
+}
+
+function evalFluctuation(expr) {
+    if (!expr) return 0;
+    const parts = expr.split(/(?=[+-])/).filter(Boolean);
+    let total = 0;
+    for (const part of parts) {
+        if (part.startsWith('+-')) {
+            const dice = part.slice(2);
+            if (dice.includes('d')) {
+                const [count, size] = dice.split('d');
+                total += d(parseInt(size), parseInt(count) || 1, '+-');
+            } else {
+                total += (Math.random() < 0.5 ? 1 : -1) * (parseInt(dice) || 0);
+            }
+        } else if (part.startsWith('+')) {
+            total += parseDice(part.slice(1));
+        } else if (part.startsWith('-')) {
+            total -= parseDice(part.slice(1));
+        }
+    }
+    return total;
+}
+
+function initTargetProps(target) {
+    const s = TARGET_SETTINGS[target.name];
+    if (!s) return;
+    target.tec = s.tec[0]; target._tec = s.tec[1];
+    target.cul = s.cul[0]; target._cul = s.cul[1];
+    target.prd = s.prd[0]; target._prd = s.prd[1];
+    target.pop = s.pop[0]; target._pop = s.pop[1];
+    target.mil = s.mil[0]; target._mil = s.mil[1];
+    target.inf = s.inf[0]; target._inf = s.inf[1];
+    target.tre = s.tre[0]; target._tre = s.tre[1];
+    target.cal = s.cal[0]; target._cal = s.cal[1];
+    target.mdtBase = s.mdtBase;
+}
+
+function targetMinxin(t) {
+    const avg = ((t.tec||0) + (t.cul||0) + (t.prd||0) + (t.pop||0) + (t.mil||0)) / 5;
+    return Math.floor(avg + (t.inf||0) * 0.8 + (t.tre||0) / 7);
+}
+
+function targetTiantian(t) {
+    return (t.mdtBase||0) + targetMinxin(t) - (t.cal||0);
+}
+
+function processTargetFluctuations() {
+    (G.mapData.targets || []).forEach(t => {
+        if (t.id === 'headquarter') return;
+        if (t._tec) t.tec = Math.max(0, (t.tec||0) + evalFluctuation(t._tec));
+        if (t._cul) t.cul = Math.max(0, (t.cul||0) + evalFluctuation(t._cul));
+        if (t._prd) t.prd = Math.max(0, (t.prd||0) + evalFluctuation(t._prd));
+        if (t._pop) t.pop = Math.max(0, (t.pop||0) + evalFluctuation(t._pop));
+        if (t._mil) t.mil = Math.max(0, (t.mil||0) + evalFluctuation(t._mil));
+        if (t._inf) t.inf = Math.max(0, (t.inf||0) + evalFluctuation(t._inf));
+        if (t._tre) t.tre = Math.max(0, (t.tre||0) + evalFluctuation(t._tre));
+        if (t._cal) t.cal = Math.max(0, (t.cal||0) + evalFluctuation(t._cal));
+    });
+}
+
+function showTargetDetail(targetId) {
+    const t = G.mapData.targets.find(x => x.id === targetId);
+    if (!t) return;
+    const mx = targetMinxin(t);
+    const tt = targetTiantian(t);
+    let html = `<div class="detail-header">${t.name}</div>`;
+    html += '<div class="detail-stats" style="margin-top:8px;">';
+    html += `<span><span class="stat-label">科技:</span> <span class="stat-val">${t.tec||0}</span></span>`;
+    html += `<span><span class="stat-label">文化:</span> <span class="stat-val">${t.cul||0}</span></span>`;
+    html += `<span><span class="stat-label">生产:</span> <span class="stat-val">${t.prd||0}</span></span>`;
+    html += `<span><span class="stat-label">人口:</span> <span class="stat-val">${t.pop||0}</span></span>`;
+    html += `<span><span class="stat-label">军事:</span> <span class="stat-val">${t.mil||0}</span></span>`;
+    html += `<span><span class="stat-label">领导人影响:</span> <span class="stat-val">${t.inf||0}</span></span>`;
+    html += `<span><span class="stat-label">国库:</span> <span class="stat-val">${t.tre||0}</span></span>`;
+    html += `<span><span class="stat-label">灾厄:</span> <span class="stat-val">${t.cal||0}</span></span>`;
+    html += `<span><span class="stat-label">天命基础:</span> <span class="stat-val">${t.mdtBase||0}</span></span>`;
+    html += '</div>';
+    html += '<div style="margin-top:10px;border-top:1px solid #333;padding-top:8px;">';
+    html += `<span>民心: ${mx}</span><br>`;
+    html += `<span>天命: ${tt}</span>`;
+    html += '</div>';
+    document.getElementById('targetDetailTitle').textContent = `${t.name} 属性`;
+    document.getElementById('targetDetailContent').innerHTML = html;
+    document.getElementById('targetDetailOverlay').style.display = 'flex';
+}
+
+
 function isConsort(ch) {
     if (!ch || ch.isDead || ch.exitStatus) return false;
     const emp = G.chars.find(e => e.id === G.leaderId);
@@ -1000,8 +1116,9 @@ function executeChildbirth(c, t) {
             logLifeEvent(c, 'childbirth', '与' + t.name + '生下' + child.name);
             logLifeEvent(t, 'childbirth', '与' + c.name + '生下' + child.name);
             updateOrganization();
-            renderCharList();
-            renderGame();
+    renderCharList();
+    renderGame();
+    refreshActionPanelTabs();
             showActionResult(msg);
             finalizeCharAction(c);
         };
@@ -1037,7 +1154,7 @@ function showExileTargets(c) {
     const btnContainer = document.getElementById('actionBtns');
     btnContainer.innerHTML = '';
     const targets = G.chars.filter(t =>
-        t.id !== c.id && t.id !== G.leaderId && !t.isDead && !t.exitStatus
+        t.id !== c.id && t.id !== G.leaderId && !t.isDead && !t.exitStatus && !isConquestParticipant(t)
     );
     if (targets.length === 0) {
         prompt.textContent = '没有可流放的对象。';
@@ -2290,7 +2407,7 @@ function showTransferTargets(c) {
     const btnContainer = document.getElementById('actionBtns');
 
     if ((c.wel || 0) < 5) {
-        prompt.textContent = `${c.name}: 财富不足5，无法转赠。`;
+        prompt.textContent = `${c.name}: 财富不足5，无法转账。`;
         btnContainer.innerHTML = '';
         const backBtn = document.createElement('button');
         backBtn.textContent = '返回';
@@ -2302,7 +2419,7 @@ function showTransferTargets(c) {
     const targets = G.chars.filter(t => t.id !== c.id && !t.isDead);
 
     if (targets.length === 0) {
-        prompt.textContent = `${c.name}: 没有可以转赠的对象。`;
+        prompt.textContent = `${c.name}: 没有可以转账的对象。`;
         btnContainer.innerHTML = '';
         const backBtn = document.createElement('button');
         backBtn.textContent = '返回';
@@ -2311,28 +2428,14 @@ function showTransferTargets(c) {
         return;
     }
 
-    prompt.textContent = `${c.name}: 选择要转赠的对象（当前财富: ${c.wel}）`;
+    prompt.textContent = `${c.name}: 选择转账对象（当前财富: ${c.wel}）`;
     btnContainer.innerHTML = '';
 
     targets.forEach(t => {
         const btn = document.createElement('button');
         btn.textContent = `${t.name} (财${t.wel})`;
         btn.addEventListener('click', () => {
-            const input = prompt(`向 ${t.name} 转赠多少财富？（当前拥有: ${c.wel}）`, '0');
-            const amount = parseInt(input);
-            if (isNaN(amount) || amount <= 0) {
-                showActionResult(`<span class="info">[转赠]</span> ${c.name} 取消了转赠。`);
-                finalizeCharAction(c);
-                return;
-            }
-            if (amount > c.wel) {
-                alert(`财富不足！拥有${c.wel}财，想转赠${amount}财。`);
-                return;
-            }
-            c.wel -= amount;
-            t.wel += amount;
-            showActionResult(`<span class="success">[转赠]</span> ${c.name} 转赠了 ${amount}财 给 ${t.name}。`);
-            finalizeCharAction(c);
+            showTransferAmountOverlay(c, t);
         });
         btnContainer.appendChild(btn);
     });
@@ -2343,19 +2446,62 @@ function showTransferTargets(c) {
     btnContainer.appendChild(backBtn);
 }
 
-function bestowSurname(c, t) {
-    const leaderSurname = c.surname;
-    if (t.surname === leaderSurname) {
-        showActionResult(`<span class="info">[赐姓]</span> ${t.name} 已有国姓。`);
+function showTransferAmountOverlay(c, t) {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;';
+    const win = document.createElement('div');
+    win.style.cssText = 'background:#1a1a2e;padding:24px;border-radius:10px;min-width:280px;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,0.3);border:1px solid #0f3460;';
+    const titleEl = document.createElement('div');
+    titleEl.textContent = `向 ${t.name} 转账（拥有: ${c.wel}财）`;
+    titleEl.style.cssText = 'font-size:16px;font-weight:bold;margin-bottom:16px;color:#e0e0e0;';
+    const input = document.createElement('input');
+    input.type = 'number';
+    input.min = '1';
+    input.max = String(c.wel);
+    input.value = '0';
+    input.style.cssText = 'width:200px;padding:8px;font-size:16px;margin-bottom:12px;border:1px solid #333;border-radius:4px;text-align:center;background:#16213e;color:#e0e0e0;';
+    const errEl = document.createElement('div');
+    errEl.style.cssText = 'color:#e94560;font-size:13px;margin-bottom:8px;display:none;';
+    const btnRow = document.createElement('div');
+    btnRow.style.cssText = 'display:flex;justify-content:center;gap:10px;';
+    const confirmBtn = document.createElement('button');
+    confirmBtn.textContent = '确认转账';
+    confirmBtn.style.cssText = 'padding:6px 14px;font-size:14px;cursor:pointer;border:none;border-radius:4px;background:#e94560;color:#fff;';
+    confirmBtn.onclick = () => {
+        const amount = parseInt(input.value);
+        if (isNaN(amount) || amount <= 0) {
+            errEl.textContent = '请输入有效金额（大于0）';
+            errEl.style.display = '';
+            return;
+        }
+        if (amount > c.wel) {
+            errEl.textContent = `财富不足！拥有${c.wel}财。`;
+            errEl.style.display = '';
+            return;
+        }
+        overlay.remove();
+        c.wel -= amount;
+        t.wel += amount;
+        showActionResult(`<span class="success">[转账]</span> ${c.name} 转账 ${amount}财 给 ${t.name}。`);
         finalizeCharAction(c);
-        return;
-    }
-    t.middlename = t.surname;
-    t.surname = leaderSurname;
-    t.name = t.surname + t.middlename + t.givenname;
-    addLog(`<span class="success">[赐姓]</span> ${c.name} 赐姓于 ${t.name}。`);
-    showActionResult(`<span class="success">[赐姓]</span> ${c.name} 赐姓于 ${t.name}。`);
-    finalizeCharAction(c);
+    };
+    const cancelBtn = document.createElement('button');
+    cancelBtn.textContent = '取消';
+    cancelBtn.style.cssText = 'padding:6px 14px;font-size:14px;cursor:pointer;border:1px solid #555;border-radius:4px;background:transparent;color:#aaa;';
+    cancelBtn.onclick = () => {
+        overlay.remove();
+        showActionResult(`<span class="info">[转账]</span> ${c.name} 取消了转账。`);
+        finalizeCharAction(c);
+    };
+    btnRow.appendChild(confirmBtn);
+    btnRow.appendChild(cancelBtn);
+    win.appendChild(titleEl);
+    win.appendChild(input);
+    win.appendChild(errEl);
+    win.appendChild(btnRow);
+    overlay.appendChild(win);
+    document.body.appendChild(overlay);
+    setTimeout(() => input.focus(), 100);
 }
 
 function showBestowSurnameTargets(c) {
@@ -3810,6 +3956,8 @@ function handleExit(c, reason) {
     c.isDead = (reason === 'natural' || reason === 'killed');
     c.exitYear = G.time;
     if (!c.entryAge && c.entryAge !== 0) c.entryAge = c.age;
+    // Conquest participant death → remove from conquest
+    if (c.isDead) handleConquestDeath(c.id);
     const exitLabels = { natural: '寿终正寝', killed: '被杀', retired: '隐退', exiled: '流放' };
     logLifeEvent(c, 'exit', exitLabels[reason] || '离场');
     logFamilyExitEvent(c, exitLabels[reason] || '离场');
@@ -4154,7 +4302,7 @@ function getActionsForAge(age, c) {
         { id: 'rest', label: '养生' },
         { id: 'elderlyCare', label: '养老' },
         { id: 'exploit', label: '剥削' },
-        { id: 'transfer', label: '转赠' },
+        { id: 'transfer', label: '转账' },
         { id: 'appoint', label: '指派' },
         { id: 'bestowSurname', label: '赐姓' },
         { id: 'governPolicy', label: '施政' },
@@ -4172,7 +4320,7 @@ function getActionsForAge(age, c) {
         { id: 'rest', label: '养生' },
         { id: 'elderlyCare', label: '养老' },
         { id: 'exploit', label: '剥削' },
-        { id: 'transfer', label: '转赠' },
+        { id: 'transfer', label: '转账' },
         { id: 'appoint', label: '指派' },
         { id: 'bestowSurname', label: '赐姓' },
         { id: 'governPolicy', label: '施政' },
@@ -4188,7 +4336,7 @@ function getActionsForAge(age, c) {
         { id: 'rest', label: '养生' },
         { id: 'elderlyCare', label: '养老' },
         { id: 'exploit', label: '剥削' },
-        { id: 'transfer', label: '转赠' },
+        { id: 'transfer', label: '转账' },
         { id: 'appoint', label: '指派' },
         { id: 'bestowSurname', label: '赐姓' },
         { id: 'governPolicy', label: '施政' },
@@ -4432,6 +4580,7 @@ function confirmCharacter() {
             ]
         }
     };
+    G.mapData.targets.forEach(t => initTargetProps(t));
 
     initOrganization();
     updateOrganization();
@@ -4464,6 +4613,7 @@ function renderGame() {
     renderMap();
     renderCombinedPanel();
     renderHistoryPanel();
+    refreshActionPanelTabs();
 }
 
 function toggleMap() {
@@ -4530,6 +4680,7 @@ function renderMap() {
                 <div class="map-target-name">${t.name}</div>
                 <div class="map-target-type" style="color:${typeColor}">${typeLabel}</div>
                 <div class="map-target-status">${t.conquered ? '已占领' : '未占领'}</div>
+                ${t.tec !== undefined ? `<div class="map-target-stats">民${targetMinxin(t)} 天${targetTiantian(t)}</div>` : ''}
             </div>
         `;
     });
@@ -4537,15 +4688,25 @@ function renderMap() {
     html += '</div>';
     container.innerHTML = html;
 
-    // Click handlers for unconquered targets
-    if (actingCharId !== null && actingCharId !== undefined) {
-        const actor = G.chars.find(c => c.id === actingCharId);
-        if (actor && (actor.profession === '皇帝' || actor.profession === '将军')) {
-            container.querySelectorAll('.map-target.unconquered').forEach(el => {
-                el.style.cursor = 'pointer';
-                el.addEventListener('click', () => conquerTarget(el.dataset.id));
-            });
-        }
+    // Click to select target (with dblclick guard)
+    container.querySelectorAll('.map-target').forEach(el => {
+        el.style.cursor = 'pointer';
+        let clickTimer = null;
+        el.addEventListener('click', () => {
+            if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; return; }
+            clickTimer = setTimeout(() => { clickTimer = null; selectMapTarget(el.dataset.id); }, 250);
+        });
+    });
+
+    // Double-click to show target detail
+    container.querySelectorAll('.map-target').forEach(el => {
+        el.addEventListener('dblclick', () => showTargetDetail(el.dataset.id));
+    });
+
+    // Restore selection highlight
+    if (window._selectedTargetId) {
+        const sel = container.querySelector(`.map-target[data-id="${window._selectedTargetId}"]`);
+        if (sel) sel.style.borderColor = '#e94560';
     }
 }
 
@@ -4943,6 +5104,471 @@ function closeCharDetail() {
     document.getElementById('charDetailOverlay').style.display = 'none';
 }
 
+function closeTargetDetail() {
+    document.getElementById('targetDetailOverlay').style.display = 'none';
+}
+
+function handleConquestSuccess(cq, t, resultType) {
+    t.conquered = true;
+    const allConquered = G.mapData.targets.every(t => t.conquered);
+    let msg = `<span style="color:#ffd700;font-size:1.1em;">[征服成功]</span> ${t.name} 被征服！（${resultType}）`;
+    if (allConquered && G.organization.current.lvl < 5) {
+        G.organization.current.lvl += 1;
+        msg += `<br><span class="extreme">[升级]</span> 全境统一！${getStateName(G.organization.current.lvl)} 建立！`;
+    }
+    addLog(msg);
+    showActionResult(msg);
+    renderMap();
+    renderOrganization();
+    refreshActionPanelTabs();
+}
+
+// ---- 征服系统 ----
+
+function canStartConquest() {
+    if ((G._conquests || []).some(c => c.status === 'active')) return false;
+    const autoWork = ['学者','艺人','劳工','士兵','普侍'];
+    const free = G.chars.filter(c => !c.isDead && !c._actedThisYear && !autoWork.includes(c.profession));
+    const emperorOk = free.some(c => c.id === G.leaderId);
+    const ministerOk = free.some(c => ['正宫','宰相','监工','将军'].includes(c.profession));
+    return free.length >= 3 && emperorOk && ministerOk;
+}
+
+function selectMapTarget(targetId) {
+    window._selectedTargetId = targetId;
+    const t = G.mapData.targets.find(x => x.id === targetId);
+    const actionEl = document.getElementById('mapAction');
+    if (!actionEl) return;
+
+    const existing = (G._conquests || []).find(c => c.targetId === targetId);
+    const isConquering = existing && existing.status === 'active';
+
+    let html = `<div style="font-size:0.75rem;color:#e0e0e0;margin-bottom:6px;">选中: ${t.name}</div>`;
+    if (t.conquered) {
+        html += `<span style="color:#66bb6a;font-size:0.75rem;">已占领</span>`;
+    } else if (isConquering) {
+        html += renderConquestStatus(existing, t);
+    } else if (!canStartConquest()) {
+        html += `<span style="color:#888;font-size:0.75rem;">条件不足：需要皇帝空闲、至少一位重臣以及其他共3名可行动角色</span>`;
+    } else {
+        html += `<button onclick="startConquest('${targetId}')" style="background:#e94560;color:#fff;border:none;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:0.75rem;">征服</button>`;
+    }
+    actionEl.innerHTML = html;
+    actionEl.style.display = 'block';
+
+    const container = document.getElementById('mapContent');
+    if (container) {
+        container.querySelectorAll('.map-target').forEach(el => el.style.borderColor = '');
+        const sel = container.querySelector(`.map-target[data-id="${targetId}"]`);
+        if (sel) sel.style.borderColor = '#e94560';
+    }
+}
+
+function startConquest(targetId) {
+    const t = G.mapData.targets.find(x => x.id === targetId);
+    if (!t || t.conquered) return;
+    if ((G._conquests || []).some(c => c.status === 'active')) { alert('已有进行中的征服进程。'); return; }
+    if (!canStartConquest()) { alert('条件不足。'); return; }
+    if (!confirm(`开启对 ${t.name} 的征服进程？征战角色的行动面板将立即改变。`)) return;
+
+    const autoWork = ['学者','艺人','劳工','士兵','普侍'];
+    const free = G.chars.filter(c => !c.isDead && !c._actedThisYear && !autoWork.includes(c.profession));
+
+    // Participants: emperor + free 正宫/宰相/监工/将军
+    const participants = free.filter(c => c.id === G.leaderId || ['正宫','宰相','监工','将军'].includes(c.profession));
+
+    const duration = d(3);
+    if (!G._conquests) G._conquests = [];
+    G._conquests.push({
+        targetId, startYear: G.time, duration,
+        participants: participants.map(c => c.id),
+        validated: [],
+        status: 'active',
+        budget: { tec:100, cul:100, prd:100, pop:100, mil:100, inf:100, tre:100 }
+    });
+
+    participants.forEach(c => {
+        addLog(`<span style="color:#e94560;">[征服]</span> ${c.name} 加入征服进程（${t.name}，${duration}年内完成）。行动面板已变更。`);
+    });
+    showActionResult(`<span style="color:#e94560;">[征服]</span> 对 ${t.name} 的征服进程已启动，需在${duration}年内完成。`);
+    selectMapTarget(targetId);
+    renderMap();
+    refreshActionPanelTabs();
+}
+
+function renderConquestStatus(cq, t) {
+    const remain = cq.startYear + cq.duration - G.time;
+    const pNames = cq.participants.map(id => G.chars.find(c => c.id === id)?.name || '?').join('、');
+    let h = `<div style="font-size:0.75rem;color:#e94560;">征服进行中 · 剩余${remain}年</div>`;
+    h += `<div style="font-size:0.7rem;color:#888;margin:4px 0;">征战: ${pNames}</div>`;
+    h += `<div style="font-size:0.65rem;color:#666;margin:2px 0;">详情请查看行动面板的「征服」选项卡</div>`;
+    return h;
+}
+
+// ---- Action Panel Tabs (conquest mode) ----
+
+function getActiveConquest() {
+    return (G._conquests || []).find(c => c.status === 'active');
+}
+
+function refreshActionPanelTabs() {
+    const cq = getActiveConquest();
+    const panel = document.getElementById('actionPanel');
+    if (!panel) return;
+    let tabBar = document.getElementById('actionTabBar');
+    let conquestPanel = document.getElementById('actionConquestPanel');
+    if (!cq) {
+        if (tabBar) tabBar.remove();
+        if (conquestPanel) conquestPanel.remove();
+        const content = document.getElementById('actionContent');
+        if (content) content.style.display = '';
+        return;
+    }
+    // Ensure tab bar exists
+    if (!tabBar) {
+        tabBar = document.createElement('div');
+        tabBar.id = 'actionTabBar';
+        tabBar.style.cssText = 'display:flex;gap:0;border-bottom:1px solid #0f3460;margin-bottom:6px;';
+        tabBar.innerHTML = `
+            <span class="ap-tab active" data-aptab="action" style="padding:4px 10px;cursor:pointer;font-size:0.75rem;color:#e0e0e0;border-bottom:2px solid #e94560;">行动</span>
+            <span class="ap-tab" data-aptab="conquest" style="padding:4px 10px;cursor:pointer;font-size:0.75rem;color:#888;">征服</span>
+        `;
+        tabBar.querySelectorAll('.ap-tab').forEach(el => {
+            el.addEventListener('click', () => switchActionTab(el.dataset.aptab));
+        });
+        const h3 = panel.querySelector('h3');
+        if (h3) h3.after(tabBar);
+    }
+    // Ensure conquest panel exists
+    if (!conquestPanel) {
+        conquestPanel = document.createElement('div');
+        conquestPanel.id = 'actionConquestPanel';
+        conquestPanel.style.display = 'none';
+        const content = document.getElementById('actionContent');
+        if (content) content.after(conquestPanel);
+    }
+    const content = document.getElementById('actionContent');
+    if (content) content.style.display = '';
+    conquestPanel.style.display = 'none';
+    // Reset to action tab
+    tabBar.querySelectorAll('.ap-tab').forEach(el => {
+        if (el.dataset.aptab === 'action') {
+            el.style.color = '#e0e0e0';
+            el.style.borderBottom = '2px solid #e94560';
+        } else {
+            el.style.color = '#888';
+            el.style.borderBottom = 'none';
+        }
+    });
+    // Refresh conquest content
+    const t = cq ? G.mapData.targets.find(x => x.id === cq.targetId) : null;
+    if (cq && t) conquestPanel.innerHTML = renderConquestActionTab(cq, t);
+}
+
+function switchActionTab(tab) {
+    const bar = document.getElementById('actionTabBar');
+    if (bar) {
+        bar.querySelectorAll('.ap-tab').forEach(el => {
+            if (el.dataset.aptab === tab) {
+                el.style.color = '#e0e0e0';
+                el.style.borderBottom = '2px solid #e94560';
+            } else {
+                el.style.color = '#888';
+                el.style.borderBottom = 'none';
+            }
+        });
+    }
+    const content = document.getElementById('actionContent');
+    const conquestPanel = document.getElementById('actionConquestPanel');
+    if (content) content.style.display = tab === 'action' ? '' : 'none';
+    if (conquestPanel) {
+        conquestPanel.style.display = tab === 'conquest' ? '' : 'none';
+        if (tab === 'conquest') {
+            const cq = getActiveConquest();
+            const t = cq ? G.mapData.targets.find(x => x.id === cq.targetId) : null;
+            if (cq && t) conquestPanel.innerHTML = renderConquestActionTab(cq, t);
+        }
+    }
+}
+
+function renderConquestActionTab(cq, t) {
+    const remain = cq.startYear + cq.duration - G.time;
+    const pNames = cq.participants.map(id => G.chars.find(c => c.id === id)?.name || '?').join('、');
+    let h = `<div style="font-size:0.75rem;color:#e94560;">征服进行中 · 剩余${remain}年</div>`;
+    h += `<div style="font-size:0.7rem;color:#888;margin:4px 0;">征战: ${pNames}</div>`;
+    const keys = CONQUEST_KEYS[t.name] || [];
+    const validatedIdx = cq.validated.map(v => v.condIdx);
+    const unverifiedKeys = keys.filter(i => !validatedIdx.includes(i));
+    h += `<div style="font-size:0.7rem;color:#aaa;margin:6px 0;">关键条件待验证: ${unverifiedKeys.length}条</div>`;
+    // Budget display
+    const budget = cq.budget || { tec:100, cul:100, prd:100, pop:100, mil:100, inf:100, tre:100 };
+    const bLabels = { tec:'科技', cul:'文化', prd:'生产', pop:'人口', mil:'军事', inf:'影响', tre:'银库' };
+    h += `<div style="font-size:0.65rem;color:#666;margin:4px 0;">剩余权重: ${Object.keys(budget).map(k => `<span style="color:${budget[k]<=0?'#444':'#888'}">${bLabels[k]}${budget[k]}%</span>`).join(' ')}</div>`;
+    CONQUEST_CONDS.forEach((cond, i) => {
+        const done = validatedIdx.includes(i);
+        const isKey = keys.includes(i);
+        const v = done ? cq.validated.find(x => x.condIdx === i) : null;
+        const color = done ? (v && v.success ? '#66bb6a' : '#e94560') : (isKey ? '#e0e0e0' : '#888');
+        const deco = done ? 'line-through' : 'none';
+        h += `<div style="display:flex;align-items:center;gap:4px;font-size:0.7rem;margin:2px 0;color:${color};text-decoration:${deco};">`;
+        if (done) {
+            h += `<span style="width:16px;">${v && v.success ? '✓' : '✗'}</span>`;
+        } else {
+            h += `<span style="width:16px;"></span>`;
+        }
+        h += `${isKey ? '★' : '·'} ${cond.name}`;
+        if (!done) {
+            h += ` <button onclick="verifySingleCondition(${i})" style="margin-left:auto;background:#e94560;color:#fff;border:none;padding:1px 8px;border-radius:3px;cursor:pointer;font-size:0.65rem;">验证</button>`;
+        }
+        h += `</div>`;
+    });
+    return h;
+}
+
+function verifySingleCondition(condIdx) {
+    const cq = getActiveConquest();
+    if (!cq) return;
+    const t = G.mapData.targets.find(x => x.id === cq.targetId);
+    if (!t) return;
+    const cond = CONQUEST_CONDS[condIdx];
+    const panel = document.getElementById('actionConquestPanel');
+    if (!panel) return;
+
+    const attrFields = ['tec','cul','prd','pop','mil','inf','tre'];
+    const attrLabels = { tec:'科技', cul:'文化', prd:'生产', pop:'人口', mil:'军事', inf:'影响', tre:'银库' };
+    let weights = {};
+    attrFields.forEach(f => weights[f] = 0);
+    const budget = cq.budget || { tec:100, cul:100, prd:100, pop:100, mil:100, inf:100, tre:100 };
+    const org = G.organization.current;
+
+    let html = `<div style="color:#e0e0e0;font-size:15px;font-weight:bold;margin-bottom:8px;">验证条件: ${cond.name}</div>`;
+    html += `<div style="color:#888;font-size:0.7rem;margin-bottom:6px;">分配权重（每项最大值=${budget[cond.field]}%，总计≤100%）</div>`;
+    attrFields.forEach(f => {
+        const maxVal = Math.max(0, budget[f] || 0);
+        const depleted = maxVal <= 0;
+        html += `<div style="display:flex;align-items:center;gap:6px;margin:3px 0;">
+            <span style="color:${depleted?'#444':'#aaa'};font-size:0.75rem;width:50px;">${attrLabels[f]}</span>
+            <input type="range" min="0" max="${Math.max(1,maxVal)}" step="5" value="0" data-attr="${f}" style="flex:1;${depleted?'opacity:0.3;':''}" ${depleted?'disabled':''} oninput="document.getElementById('iw_${f}').textContent=this.value+'%'">
+            <span id="iw_${f}" style="color:${depleted?'#444':'#e0e0e0'};font-size:0.75rem;width:40px;text-align:right;">0%</span>
+        </div>`;
+    });
+    html += `<div style="color:#888;font-size:0.7rem;margin:6px 0;">总权重: <span id="itotalW">0</span>%</div>`;
+    html += `<div id="iweightErr" style="color:#e94560;font-size:0.7rem;display:none;">总权重超过100%</div>`;
+    html += `<div style="margin:8px 0;padding:6px;background:#0f3460;border-radius:4px;font-size:0.75rem;text-align:center;">
+        <span style="color:#66bb6a;">玩家 <span id="livePlayerCheck">-</span></span>
+        <span style="color:#888;"> vs </span>
+        <span style="color:#e94560;">对手 <span id="liveOppCheck">-</span></span>
+    </div>`;
+    html += `<div style="font-size:0.6rem;color:#666;margin-bottom:4px;text-align:center;">基础检定值（不含军事/影响/天命随机修正）</div>`;
+    html += `<div style="text-align:center;margin-top:10px;">
+        <button id="iconfirmValBtn" style="background:#e94560;color:#fff;border:none;padding:4px 14px;border-radius:4px;cursor:pointer;font-size:0.75rem;">确认验证</button>
+        <button onclick="cancelInlineValidation()" style="margin-left:6px;background:transparent;color:#aaa;border:1px solid #555;padding:4px 14px;border-radius:4px;cursor:pointer;font-size:0.75rem;">取消</button>
+    </div>`;
+    panel.innerHTML = html;
+
+    const inputs = panel.querySelectorAll('input[type=range]');
+    const updateLive = () => {
+        let total = 0;
+        inputs.forEach(i => { weights[i.dataset.attr] = parseInt(i.value) || 0; total += weights[i.dataset.attr]; });
+        document.getElementById('itotalW').textContent = total;
+        document.getElementById('iweightErr').style.display = total > 100 ? '' : 'none';
+        document.getElementById('iconfirmValBtn').disabled = total > 100;
+        if (total > 0) {
+            const live = computeConquestChecks(org, t, condIdx, weights);
+            document.getElementById('livePlayerCheck').textContent = live.playerCheck;
+            document.getElementById('liveOppCheck').textContent = live.opponentCheck;
+        } else {
+            document.getElementById('livePlayerCheck').textContent = '-';
+            document.getElementById('liveOppCheck').textContent = '-';
+        }
+    };
+    inputs.forEach(inp => inp.addEventListener('input', updateLive));
+    document.getElementById('iconfirmValBtn').onclick = () => {
+        let total = 0;
+        inputs.forEach(i => { weights[i.dataset.attr] = parseInt(i.value) || 0; total += weights[i.dataset.attr]; });
+        if (total > 100) { alert('总权重不可超过100%'); return; }
+        doConquestValidation(cq, t, condIdx, weights);
+    };
+}
+
+function computeConquestChecks(org, t, condIdx, weights) {
+    const cond = CONQUEST_CONDS[condIdx];
+    const oppField = cond.field;
+    let playerScore = 0;
+    const orgFields = { tec:'tec', cul:'cul', prd:'prd', pop:'pop', mil:'mil', inf:'inf', tre:'btre' };
+    Object.keys(weights).forEach(f => {
+        const w = weights[f] / 100;
+        let val = 0;
+        if (f === 'tre') val = org.btre || 0;
+        else val = (org[f] || 0);
+        playerScore += val * w;
+    });
+    const opponentScore = t[oppField] || 0;
+    const total = playerScore + opponentScore;
+    if (total <= 0) return { playerCheck: 0, opponentCheck: 0, playerScore: 0, opponentScore: 0, total: 0 };
+
+    const pct = playerScore / total;
+    const playerBase = Math.max(10, Math.min(190, Math.floor(pct * 200)));
+    const opponentBase = Math.max(10, Math.min(190, 200 - playerBase));
+
+    return { playerCheck: playerBase, opponentCheck: opponentBase, playerScore, opponentScore, total };
+}
+
+function cancelInlineValidation() {
+    const cq = getActiveConquest();
+    const t = cq ? G.mapData.targets.find(x => x.id === cq.targetId) : null;
+    const panel = document.getElementById('actionConquestPanel');
+    if (panel && cq && t) panel.innerHTML = renderConquestActionTab(cq, t);
+}
+
+function doConquestValidation(cq, t, condIdx, weights) {
+    const cond = CONQUEST_CONDS[condIdx];
+    const org = G.organization.current;
+
+    const checks = computeConquestChecks(org, t, condIdx, weights);
+    const playerBase = checks.playerCheck;
+    const opponentBase = checks.opponentCheck;
+    const opponentScore = checks.opponentScore;
+    let playerScore = checks.playerScore;
+    const total = checks.total;
+
+    const oppMdt = targetTiantian(t);
+
+    // Apply mil/inf/mdt random modifiers
+    const orgMil = org.mil || 0;
+    const orgInf = org.inf || 0;
+    const playerMdt = org.mdt || 0;
+    const oppMil = t.mil || 0;
+    const oppInf = t.inf || 0;
+
+    let playerMod = 0, oppMod = 0;
+    if (orgMil > oppMil) oppMod -= d(10);
+    if (orgInf > oppInf) playerMod -= d(10);
+    if (playerMdt > oppMdt) { oppMod += d(20); }
+
+    const finalPlayerCheck = Math.max(1, playerBase + playerMod);
+    const finalOppCheck = Math.max(1, opponentBase + oppMod);
+
+    // Contest
+    const playerResult = ch(finalPlayerCheck);
+    const oppResult = ch(finalOppCheck);
+    const diff = playerResult - oppResult;
+    let success;
+    if (diff > 0) success = true;
+    else if (diff < 0) success = false;
+    else {
+        const playerTiantian = org.mdt || 0;
+        success = playerTiantian >= oppMdt;
+    }
+
+    // Deduct weights from budget
+    if (!cq.budget) cq.budget = { tec:100, cul:100, prd:100, pop:100, mil:100, inf:100, tre:100 };
+    Object.keys(weights).forEach(f => {
+        cq.budget[f] = Math.max(0, (cq.budget[f] || 0) - (weights[f] || 0));
+    });
+
+    cq.validated.push({ condIdx, success, playerScore, opponentScore, total, playerCheck:finalPlayerCheck, opponentCheck:finalOppCheck, playerResult, oppResult });
+
+    // Always log individual validation result
+    addLog(`<span class="info">[验证]</span> ${cond.name} 验证${success ? '成功' : '失败'}（玩家${finalPlayerCheck} vs 对手${finalOppCheck}，差值${diff}）。`);
+
+    // Only evaluate victory when ALL conditions are validated
+    const allValidated = cq.validated.length >= CONQUEST_CONDS.length;
+    if (allValidated) {
+        const vResult = checkConquestFinal(cq, t);
+        if (vResult === 'victory') {
+            cq.status = 'success';
+            handleConquestSuccess(cq, t, '胜利');
+        } else {
+            cq.status = 'fail';
+            addLog(`<span style="color:#e94560;">[征服失败]</span> 对 ${t.name} 的征服进程失败——所有条件已验证但未达胜利标准。`);
+        }
+    }
+    selectMapTarget(cq.targetId);
+    renderMap();
+    refreshActionPanelTabs();
+}
+
+function checkConquestFinal(cq, t) {
+    const keys = CONQUEST_KEYS[t.name] || [];
+    const validatedIdx = cq.validated.map(v => v.condIdx);
+    const unverifiedKeys = keys.filter(i => !validatedIdx.includes(i));
+    
+    const keySuccess = cq.validated.filter(v => keys.includes(v.condIdx) && v.success).length;
+    const keyFailed = cq.validated.filter(v => keys.includes(v.condIdx) && !v.success).length;
+    const nonKeyFailed = cq.validated.filter(v => !keys.includes(v.condIdx) && !v.success).length;
+    const totalSuccess = cq.validated.filter(v => v.success).length;
+
+    if (unverifiedKeys.length === 0) {
+        if (keySuccess === keys.length && totalSuccess >= 4) return 'victory';
+    }
+    if (unverifiedKeys.length <= 1) {
+        if (keyFailed <= 1 && nonKeyFailed <= 1) return 'victory';
+    }
+    return 'fail';
+}
+
+function processConquests() {
+    if (!G._conquests) G._conquests = [];
+    G._conquests.forEach(cq => {
+        if (cq.status !== 'active') return;
+        const t = G.mapData.targets.find(x => x.id === cq.targetId);
+        if (!t) { cq.status = 'fail'; return; }
+
+        const org = G.organization.current;
+        const playerMdt = org.mdt || 0;
+        const oppMdt = targetTiantian(t);
+
+        // Player mil > opponent mil: opponent conds -1d10
+        if ((org.mil||0) > (t.mil||0)) {
+            // applied in validation, no yearly effect needed
+        }
+        // Player inf > opponent inf: player conds -1d10
+        if ((org.inf||0) > (t.inf||0)) {
+            // applied in validation
+        }
+        // Player mdt > opponent mdt: opponent attrs 20% -1d10 each
+        if (playerMdt > oppMdt) {
+            ['tec','cul','prd','pop','mil','inf','tre'].forEach(f => {
+                if (Math.random() < 0.2) {
+                    const loss = d(10);
+                    t[f] = Math.max(0, (t[f]||0) - loss);
+                }
+            });
+        }
+
+        // Check expiry
+        if (G.time >= cq.startYear + cq.duration) {
+            const result = checkConquestFinal(cq, t);
+            if (result === 'victory') {
+                cq.status = 'success';
+                handleConquestSuccess(cq, t, '胜利');
+            } else {
+                cq.status = 'fail';
+                addLog(`<span style="color:#e94560;">[征服失败]</span> 对 ${t.name} 的征服进程超时失败。`);
+                renderMap();
+                refreshActionPanelTabs();
+            }
+        }
+    });
+}
+
+// 征服角色行动限制（在 getActionsForAge 过滤时使用）
+function isConquestParticipant(c) {
+    return (G._conquests || []).some(cq =>
+        cq.status === 'active' && cq.participants.includes(c.id)
+    );
+}
+
+// 征服角色禁止流放/归隐；死亡时移出列表
+function handleConquestDeath(charId) {
+    (G._conquests || []).forEach(cq => {
+        if (cq.status !== 'active') return;
+        const idx = cq.participants.indexOf(charId);
+        if (idx >= 0) cq.participants.splice(idx, 1);
+    });
+}
+
 function renderLifeEvents(c) {
     if (!c.lifeEvents || c.lifeEvents.length === 0) return '';
     const events = [...c.lifeEvents].sort((a, b) => a.year - b.year);
@@ -5215,6 +5841,17 @@ function selectChar(charId) {
         .filter(a => a.id !== 'pursue' || c.profession === '皇帝')
         .filter(a => a.id !== 'propose' || c.profession === '皇帝')
         .filter(a => a.id !== 'governPolicy' || c.profession === '皇帝');
+    // 征服角色行动限制
+    if (isConquestParticipant(c)) {
+        const allowed = c.id === G.leaderId
+            ? ['transfer', 'donate', 'nothing']
+            : ['transfer', 'nothing'];
+        actions.length = 0;
+        allowed.forEach(id => {
+            const a = getActionsForAge(c.age, c).find(x => x.id === id);
+            if (a) actions.push(a);
+        });
+    }
     // 宰相 has 理政, 执教 and 无所事事
     if (c.profession === '宰相') {
         const allowed = ['govern', 'teach', 'nothing'];
@@ -5665,7 +6302,8 @@ function processAutoRetirement() {
         c.profession !== '皇帝' &&
         c.profession !== '正宫' &&
         c.profession !== '休养者' &&
-        c.profession !== '普侍'
+        c.profession !== '普侍' &&
+        !isConquestParticipant(c)
     );
 
     candidates.forEach(c => {
@@ -5763,6 +6401,13 @@ function nextYear() {
 
     G.chars.forEach(c => c._actedThisYear = false);
     G.time += 1;
+
+    // 目标地点年度数值波动
+    processTargetFluctuations();
+
+    // 征服进程年度处理
+    processConquests();
+    refreshActionPanelTabs();
 
     // 压榨效果时效处理
     if (G._squeezeEffects) {
@@ -6528,6 +7173,7 @@ function handleImportFile(e) {
             if (G.mapData && !G.mapData.targets.some(t => t.id === 'headquarter')) {
                 G.mapData.targets.unshift({ id: 'headquarter', name: G.headquarterName, type: 'admin', conquered: true });
             }
+            G.mapData.targets.forEach(t => { if (!t.hasOwnProperty('tec')) initTargetProps(t); });
             updateOrganization();
             showScreen('screenGame');
             renderGame();
@@ -6645,6 +7291,7 @@ function doLoad(key) {
         if (G.mapData && !G.mapData.targets.some(t => t.id === 'headquarter')) {
             G.mapData.targets.unshift({ id: 'headquarter', name: G.headquarterName, type: 'admin', conquered: true });
         }
+        G.mapData.targets.forEach(t => { if (!t.hasOwnProperty('tec')) initTargetProps(t); });
         updateOrganization();
         showScreen('screenGame');
         renderGame();
