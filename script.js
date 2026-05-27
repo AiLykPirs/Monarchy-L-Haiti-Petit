@@ -1,6 +1,6 @@
 // ============================================================
 // Project Slavery - Web Edition
-// Ported from Python original by hsu hsieh
+// Ported from Python original by Hsu Hsieh
 // ============================================================
 
 // ---- Dice System ----
@@ -4394,6 +4394,10 @@ function needsAppointHeirType(actionId) {
 
 // ---- Game Flow ----
 
+function showIntro() {
+    showScreen('screenIntro');
+}
+
 function startNewGame() {
     const options = generateCharOptions();
     window._charOptions = options;
@@ -4548,7 +4552,7 @@ function confirmCharacter() {
     G = {
         playerId: playerId,
         enrollTime: new Date().toISOString().slice(0, 10).replace(/-/g, ''),
-        time: 0,
+        time: 1895,
         leaderId: 0,
         imperialSurname: surname,
         founderSurname: surname,
@@ -5110,17 +5114,41 @@ function closeTargetDetail() {
 
 function handleConquestSuccess(cq, t, resultType) {
     t.conquered = true;
-    const allConquered = G.mapData.targets.every(t => t.conquered);
+    const allAdmin = G.mapData.targets.filter(x => x.type === 'admin').every(x => x.conquered);
     let msg = `<span style="color:#ffd700;font-size:1.1em;">[征服成功]</span> ${t.name} 被征服！（${resultType}）`;
-    if (allConquered && G.organization.current.lvl < 5) {
+    if (allAdmin && G.organization.current.lvl < 5) {
         G.organization.current.lvl += 1;
-        msg += `<br><span class="extreme">[升级]</span> 全境统一！${getStateName(G.organization.current.lvl)} 建立！`;
+        const newName = getStateName(G.organization.current.lvl);
+        msg += `<br><span class="extreme">[升级]</span> 全境统一！${newName} 建立！`;
+        addLog(msg);
+        showActionResult(msg);
+        if (G.organization.current.lvl === 1) {
+            showVictoryScreen(newName);
+        }
+    } else {
+        addLog(msg);
+        showActionResult(msg);
     }
-    addLog(msg);
-    showActionResult(msg);
     renderMap();
     renderOrganization();
     refreshActionPanelTabs();
+}
+
+function showVictoryScreen(stateName) {
+    const overlay = document.createElement('div');
+    overlay.id = 'victoryOverlay';
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:center;justify-content:center;';
+    const win = document.createElement('div');
+    win.style.cssText = 'background:#1a1a2e;padding:40px;border-radius:12px;min-width:360px;text-align:center;border:2px solid #ffd700;box-shadow:0 0 40px rgba(255,215,0,0.3);';
+    win.innerHTML = `
+        <div style="font-size:28px;font-weight:bold;color:#ffd700;margin-bottom:20px;">${stateName}成立了！</div>
+        <div style="font-size:16px;color:#e0e0e0;margin-bottom:12px;">做的不错！</div>
+        <div style="font-size:14px;color:#888;margin-bottom:30px;">请期待后续更新！</div>
+        <div style="font-size:48px;color:#ffd700;margin-bottom:20px;">🏆</div>
+        <button onclick="document.getElementById('victoryOverlay').remove()" style="background:#e94560;color:#fff;border:none;padding:10px 30px;border-radius:6px;cursor:pointer;font-size:16px;">继续游戏</button>
+    `;
+    overlay.appendChild(win);
+    document.body.appendChild(overlay);
 }
 
 // ---- 征服系统 ----
@@ -5576,7 +5604,7 @@ function renderLifeEvents(c) {
     const birthYear = entryYear - (c.entryAge !== undefined ? c.entryAge : 0);
 
     let html = '<div class="life-events"><div class="detail-section-title">📜生平</div>';
-    html += `<div class="life-birth">出身: 纪元${birthYear}年`;
+    html += `<div class="life-birth">出生年份: ${birthYear}年`;
     if (c.entryAge > 0) html += `（${c.entryAge}岁入场）`;
     html += '</div>';
 
@@ -5687,7 +5715,7 @@ function exportBiography(charId) {
     let text = `姓名: ${c.name}\n`;
     text += `性别: ${c.gender === 'm' ? '男' : '女'}\n`;
     text += `职业: ${c.profession}\n`;
-    text += `出生: 纪元${birthYear}年\n`;
+    text += `出生年份: ${birthYear}年\n`;
     text += `入场年龄: ${c.entryAge !== undefined ? c.entryAge + '岁' : '?'}\n`;
     text += `离场: 纪元${c.exitYear}年（${c.age}岁），${exitLabel}\n`;
     text += `\n属性:\n`;

@@ -34,9 +34,20 @@
         <main>
             <div id="screenMenu" class="screen active">
                 <h2>海地老皇帝</h2>
-                <p class="subtitle">Monarchy L'Haiti Petit &mdash; by hsu hsieh</p>
-                <button onclick="startNewGame()">新游戏</button>
+                <p class="subtitle">Monarchy L'Haiti Petit &mdash; by Hsu Hsieh</p>
+                <p style="color:#666;font-size:0.75rem;margin:4px 0 12px;">v0.1.0.0</p>
+                <button onclick="showIntro()">新游戏</button>
                 <button onclick="loadGame()">读档</button>
+            </div>
+
+            <div id="screenIntro" class="screen">
+                <div style="max-width:500px;margin:0 auto;text-align:center;padding:20px;">
+                    <div style="font-size:18px;color:#ffd700;margin-bottom:20px;line-height:1.8;">"皇帝轮流坐，明年到我家。"</div>
+                    <div style="font-size:14px;color:#ccc;line-height:1.8;text-align:justify;text-indent:2em;">
+                        在小海地这片土地上，在新秩序形成之前，这里除了腐朽的人们，什么都没有。但你不一样！你是一位有识之士，注定要领导、征战，在这片传奇的土地上用血与泪写下你的传奇！
+                    </div>
+                    <button onclick="startNewGame()" style="margin-top:30px;padding:12px 40px;font-size:18px;background:#e94560;color:#fff;border:none;border-radius:6px;cursor:pointer;">开始征程</button>
+                </div>
             </div>
 
             <div id="screenCreate" class="screen">
