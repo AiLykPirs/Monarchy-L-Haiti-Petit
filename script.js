@@ -7461,6 +7461,59 @@ function toggleLayout() {
     layout.classList.toggle('flipped');
 }
 
+// ---- i18n / Localization ----
+
+const LOCALE_DATA = {};
+let CURRENT_LOCALE = 'zh-CN';
+
+function __(key, params) {
+    const keys = key.split('.');
+    let val = LOCALE_DATA;
+    for (const k of keys) {
+        if (!val || typeof val !== 'object') return key;
+        val = val[k];
+    }
+    if (typeof val !== 'string') return key;
+    if (!params) return val;
+    return val.replace(/\{(\w+)\}/g, (_, k) => params[k] !== undefined ? params[k] : `{${k}}`);
+}
+
+function loadLocale(locale, callback) {
+    if (locale === 'zh-CN') {
+        CURRENT_LOCALE = 'zh-CN';
+        if (callback) callback();
+        return;
+    }
+    fetch('lang/' + locale + '.json')
+        .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+        .then(data => {
+            Object.assign(LOCALE_DATA, data);
+            CURRENT_LOCALE = locale;
+            if (callback) callback();
+        })
+        .catch(() => {
+            CURRENT_LOCALE = 'zh-CN';
+            if (callback) callback();
+        });
+}
+
+function setLanguage(locale) {
+    const btn = document.getElementById('langSelect');
+    if (btn) btn.textContent = locale === 'en-US' ? 'EN' : locale === 'zh-TW' ? '繁' : '简';
+    loadLocale(locale, () => {
+        document.querySelectorAll('.i18n').forEach(el => {
+            const k = el.dataset.i18n;
+            if (k) el.textContent = __(k, el.dataset.i18nParams ? JSON.parse(el.dataset.i18nParams) : undefined);
+        });
+    });
+}
+
+function cycleLanguage() {
+    const locales = ['zh-CN', 'zh-TW', 'en-US'];
+    const idx = (locales.indexOf(CURRENT_LOCALE) + 1) % locales.length;
+    setLanguage(locales[idx]);
+}
+
 // ---- Init ----
 
 document.addEventListener('DOMContentLoaded', () => {
