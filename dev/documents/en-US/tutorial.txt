@@ -1,0 +1,46 @@
+Monarchy L'Haiti Petit — Quick Start Guide
+============================================
+
+Step 1: Start a Game
+1. Click "New Game" on the title screen.
+2. Read the prologue and click "Begin Journey".
+3. Choose a starting character, enter a name and player ID, then confirm.
+
+Step 2: The Interface
+- Top bar: Shows organization name, level, Mandate of Heaven, and other
+  core information.
+- Left panel (Log): Records all game events and action results.
+- Center (Character List): Displays "Free Characters" and "Worker Characters"
+  tabs. Click a character to view details and assign actions.
+- Right panel (Action Panel): Choose an action for the selected character.
+- Bottom panel (Overview): Contains "Court" (ministers), "Harem" (spouses/
+  lovers), "Unavailable Characters", and "Dead Characters" tabs.
+
+Step 3: Playing the Game
+1. Each year, assign actions for all your characters.
+2. After all characters have acted, click "Next Year →" to advance time.
+3. Characters grow, age, marry, have children, and carry on through
+   generations.
+4. Watch your Mandate of Heaven — when it reaches zero, the game ends.
+
+Step 4: Governing the Nation
+- Appoint a Chancellor, General, and Overseer to boost organization
+  attributes.
+- Use "Govern" to raise Technology or Culture, "Drill" to raise Military,
+  and "Squeeze" to raise Production or Population.
+- Keep the treasury well-funded; tax when necessary.
+- Balance popular support against calamity.
+
+Step 5: Conquest & Expansion
+- Map targets must be conquered one by one.
+- Conquest requires validating 7 conditions, each with a budget allocation.
+- Checks are resolved by d100 rolls against target values.
+- Passing all key conditions means victory and an organization level-up.
+
+Step 6: Tips & Tricks
+- Save often (at least every 10 years).
+- Train an heir to ensure bloodline continuity.
+- Use "Study"/"Learn Art" to raise character attributes.
+- Arrange marriages to bring in new bloodlines and talent.
+- When the Mandate is low, use granary policies or adjust governance to
+  raise popular support.

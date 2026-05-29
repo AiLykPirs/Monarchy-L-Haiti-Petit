@@ -1,8 +1,0 @@
-目标名称	名称1	条件1	名称2	条件2	名称3	条件3	名称4	条件4	名称5	条件5	名称6	条件6	名称7	条件7	关键编号	特殊规则
-科技大学	科技	tec	文化	cul	生产	prd	人口	pop	军事	mil	民心	inf	国库	tre	1	无
-财经大学	科技	tec	文化	cul	生产	prd	人口	pop	军事	mil	民心	inf	国库	tre	7	无
-玛钢厂	科技	tec	文化	cul	生产	prd	人口	pop	军事	mil	民心	inf	国库	tre	3	无
-第四医院	科技	tec	文化	cul	生产	prd	人口	pop	军事	mil	民心	inf	国库	tre	4	无
-东海居委会	科技	tec	文化	cul	生产	prd	人口	pop	军事	mil	民心	inf	国库	tre	"[5,6,7]"	无
-陈塘庄居委会	科技	tec	文化	cul	生产	prd	人口	pop	军事	mil	民心	inf	国库	tre	"[5,6,7]"	无
-柳林居委会	科技	tec	文化	cul	生产	prd	人口	pop	军事	mil	民心	inf	国库	tre	"[5,6,7]"	无

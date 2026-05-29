@@ -1,4 +1,4 @@
-{
+window.LOCALE_zh_TW={
   "_meta": {
     "locale": "zh-TW",
     "name": "臺灣繁體中文",
@@ -14,13 +14,18 @@
     "btn_load": "讀檔",
     "btn_new_game": "新遊戲",
     "btn_toggle_layout": "⇔翻轉",
+    "btn_docs": "文件",
+    "doc_info": "設定文檔",
+    "doc_tutorial": "新手教學",
+    "doc_stats_char": "角色屬性詳解",
+    "doc_stats_org": "組織屬性詳解",
     "year_display": "年{year}"
   },
 
   "UI_MENU": {
     "new_game": "新遊戲",
     "load_game": "讀檔",
-    "version": "v0.1.0.0",
+    "version": "v0.1.1.0",
     "intro_title": "「皇帝輪流坐，明年到我家。」",
     "intro_body": "在小海地這片土地上，在新秩序形成之前，這裡除了腐朽的人們，什麼都沒有。但你不一樣！你是一位有識之士，注定要領導、征戰，在這片傳奇的土地上用血與淚寫下你的傳奇！",
     "intro_begin": "開始征程",
@@ -69,6 +74,7 @@
 
   "UI_CHAR_CARD": {
     "age_year": "{age}歲",
+    "yr": "歲",
     "leader": "領袖",
     "acted": "已行動",
     "spouse": "配偶",
@@ -830,7 +836,11 @@
     "exit_info": "離場：紀元{year}年（{age}歲）",
     "btn_remove_history": "移出歷史",
     "btn_export": "導出生平",
-    "btn_move_history": "移入歷史人物"
+    "btn_move_history": "移入歷史人物",
+    "parents": "父母：",
+    "children": "子女：",
+    "grandparents": "祖輩：",
+    "lovers": "情人："
   },
 
   "CHAR_CREATION": {
@@ -892,11 +902,16 @@
     "conquest_condition_hint": "條件不足：需要皇帝空閒、至少一位重臣以及其他共3名可行動角色",
     "conquest_start_btn": "征服",
     "conquest_join_log": "{name} 加入征服進程（{target}，{duration}年內完成）。行動面板已變更。",
-    "conquest_start_log": "對 {target} 的征服進程已啟動，需在{duration}年內完成。"
+    "conquest_start_log": "對 {target} 的征服進程已啟動，需在{duration}年內完成。",
+    "conquered": "已佔領",
+    "unconquered": "未佔領",
+    "minxin": "民{val}",
+    "tiantian": "天{val}"
   },
 
   "HISTORY": {
     "no_figures": "暫無歷史人物。",
+    "view_more": "查看更多 →",
     "figure_entry": "{name}（入場年齡：{age}）",
     "figure_exit": "離場：{year}（{age}歲）{status}"
   },
@@ -1074,3 +1089,4 @@
     "dead": "死亡角色"
   }
 }
+;

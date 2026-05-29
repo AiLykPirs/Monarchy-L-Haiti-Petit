@@ -21,57 +21,68 @@
                 <div id="classLegend"></div>
             </div>
             <div id="headerBtns">
-                <button onclick="saveGame()">存档</button>
-                <button onclick="exportSave()">导出</button>
-                <button onclick="importSave()">读取</button>
-                <button onclick="loadGame()">读档</button>
-                <button onclick="resetGame()">新游戏</button>
-                <button onclick="toggleLayout()">⇔翻转</button>
+                <button class="i18n" data-i18n="UI_HEADER.btn_save" onclick="saveGame()">存档</button>
+                <button class="i18n" data-i18n="UI_HEADER.btn_export" onclick="exportSave()">导出</button>
+                <button class="i18n" data-i18n="UI_HEADER.btn_import" onclick="importSave()">读取</button>
+                <button class="i18n" data-i18n="UI_HEADER.btn_load" onclick="loadGame()">读档</button>
+                <button class="i18n" data-i18n="UI_HEADER.btn_new_game" onclick="resetGame()">新游戏</button>
+                <button class="i18n" data-i18n="UI_HEADER.btn_toggle_layout" onclick="toggleLayout()">⇔翻转</button>
+                <button id="devCheatBtn" onclick="showDevCheat()" style="display:none;background:#e94560;color:#fff;border:none;padding:2px 8px;border-radius:3px;cursor:pointer;font-size:0.7rem;">作弊</button>
+                <button id="headerLangBtn" onclick="showLangMenu(event)" style="background:transparent;color:#888;border:1px solid #555;padding:2px 8px;border-radius:3px;cursor:pointer;font-size:0.7rem;">文/A</button>
+                <div style="position:relative;display:inline-block;">
+                    <button id="headerDocsBtn" class="i18n" data-i18n="UI_HEADER.btn_docs" onclick="showDocsMenu(event)" style="background:transparent;color:#888;border:1px solid #555;padding:2px 8px;border-radius:3px;cursor:pointer;font-size:0.7rem;">文件</button>
+                    <div id="docsDropdown" style="display:none;position:absolute;top:100%;right:0;background:#2a2a2a;border:1px solid #444;border-radius:4px;min-width:160px;z-index:1000;box-shadow:0 4px 12px rgba(0,0,0,0.5);">
+                        <div class="i18n" data-i18n="UI_HEADER.doc_info" onclick="openDoc('info.txt')" onmouseenter="this.style.background='#0f3460'" onmouseleave="this.style.background='transparent'" style="padding:8px 12px;cursor:pointer;color:#ccc;font-size:0.75rem;border-bottom:1px solid #333;">设定文档</div>
+                        <div class="i18n" data-i18n="UI_HEADER.doc_tutorial" onclick="openDoc('tutorial.txt')" onmouseenter="this.style.background='#0f3460'" onmouseleave="this.style.background='transparent'" style="padding:8px 12px;cursor:pointer;color:#ccc;font-size:0.75rem;border-bottom:1px solid #333;">新手教程</div>
+                        <div class="i18n" data-i18n="UI_HEADER.doc_stats_char" onclick="openDoc('stats_char.txt')" onmouseenter="this.style.background='#0f3460'" onmouseleave="this.style.background='transparent'" style="padding:8px 12px;cursor:pointer;color:#ccc;font-size:0.75rem;border-bottom:1px solid #333;">角色属性详解</div>
+                        <div class="i18n" data-i18n="UI_HEADER.doc_stats_org" onclick="openDoc('stats_org.txt')" onmouseenter="this.style.background='#0f3460'" onmouseleave="this.style.background='transparent'" style="padding:8px 12px;cursor:pointer;color:#ccc;font-size:0.75rem;">组织属性详解</div>
+                    </div>
+                </div>
             </div>
             <input type="file" id="importFileInput" accept=".txt" style="display:none;" onchange="handleImportFile(event)">
         </header>
 
         <main>
             <div id="screenMenu" class="screen active">
-                <h2>海地老皇帝</h2>
+                <h2 class="i18n" data-i18n="UI_HEADER.game_title">海地老皇帝</h2>
                 <p class="subtitle">Monarchy L'Haiti Petit &mdash; by Hsu Hsieh</p>
-                <p style="color:#666;font-size:0.75rem;margin:4px 0 12px;">v0.1.0.0</p>
-                <button onclick="showIntro()">新游戏</button>
-                <button onclick="loadGame()">读档</button>
+                <p style="color:#666;font-size:0.75rem;margin:4px 0 12px;" class="i18n" data-i18n="UI_MENU.version">v0.1.1.0</p>
+                <button class="i18n" data-i18n="UI_MENU.new_game" onclick="showIntro()">新游戏</button>
+                <button class="i18n" data-i18n="UI_MENU.load_game" onclick="loadGame()">读档</button>
                 <div style="margin-top:16px;display:flex;gap:6px;justify-content:center;">
-                    <button id="langSelect" onclick="cycleLanguage()" style="background:transparent;color:#888;border:1px solid #555;padding:2px 12px;border-radius:4px;cursor:pointer;font-size:0.75rem;">简</button>
+                    <button onclick="showLangMenu(event)" style="background:transparent;color:#888;border:1px solid #555;padding:2px 12px;border-radius:4px;cursor:pointer;font-size:0.75rem;">文/A</button>
                 </div>
             </div>
 
             <div id="screenIntro" class="screen">
                 <div style="max-width:500px;margin:0 auto;text-align:center;padding:20px;">
-                    <div style="font-size:18px;color:#ffd700;margin-bottom:20px;line-height:1.8;">"皇帝轮流坐，明年到我家。"</div>
-                    <div style="font-size:14px;color:#ccc;line-height:1.8;text-align:justify;text-indent:2em;">
+                    <div class="i18n" data-i18n="UI_MENU.intro_title" style="font-size:18px;color:#ffd700;margin-bottom:20px;line-height:1.8;">"皇帝轮流坐，明年到我家。"</div>
+                    <div class="i18n" data-i18n="UI_MENU.intro_body" style="font-size:14px;color:#ccc;line-height:1.8;text-align:justify;text-indent:2em;">
                         在小海地这片土地上，在新秩序形成之前，这里除了腐朽的人们，什么都没有。但你不一样！你是一位有识之士，注定要领导、征战，在这片传奇的土地上用血与泪写下你的传奇！
                     </div>
-                    <button onclick="startNewGame()" style="margin-top:30px;padding:12px 40px;font-size:18px;background:#e94560;color:#fff;border:none;border-radius:6px;cursor:pointer;">开始征程</button>
+                    <button class="i18n" data-i18n="UI_MENU.intro_begin" onclick="startNewGame()" style="margin-top:30px;padding:12px 40px;font-size:18px;background:#e94560;color:#fff;border:none;border-radius:6px;cursor:pointer;">开始征程</button>
                 </div>
             </div>
 
             <div id="screenCreate" class="screen">
-                <h2>选择你的角色</h2>
+                <h2 class="i18n" data-i18n="UI_MENU.select_character">选择你的角色</h2>
                 <div id="charOptions"></div>
                 <div id="nameInputArea" style="display:none;">
-                    <label>选择国姓：</label>
+                    <label class="i18n" data-i18n="UI_MENU.select_surname">选择国姓：</label>
                     <div id="surnamePicker"></div>
-                    <label style="margin-top:6px;display:inline-block;">名：</label>
-                    <input type="text" id="charNameInput" maxlength="10" placeholder="输入名字...">
-                    <button onclick="randomizeName()">随机</button>
+                    <label style="margin-top:6px;display:inline-block;" class="i18n" data-i18n="UI_MENU.given_name">名：</label>
+                    <input type="text" id="charNameInput" maxlength="10" placeholder="输入名字..." class="i18n" data-i18n="UI_MENU.name_placeholder">
+                    <button class="i18n" data-i18n="UI_MENU.random" onclick="randomizeName()">随机</button>
                     <div style="margin-top:8px;">
-                        <label>玩家ID：</label>
-                        <input type="text" id="playerIdInput" placeholder="输入玩家ID..." value="player">
+                        <label class="i18n" data-i18n="UI_MENU.player_id">玩家ID：</label>
+                        <input type="text" id="playerIdInput" placeholder="输入玩家ID..." value="player" class="i18n" data-i18n="UI_MENU.player_id_placeholder">
                     </div>
                     <div style="margin-top:6px;">
-                        <label>驻地名称：</label>
-                        <input type="text" id="hqNameInput" placeholder="输入办公地点..." value="办公室">
+                        <label class="i18n" data-i18n="UI_MENU.hq_name">驻地名称：</label>
+                        <input type="text" id="hqNameInput" placeholder="输入办公地点..." value="办公室" class="i18n" data-i18n="UI_MENU.hq_placeholder">
                     </div>
                     <div style="margin-top:8px;">
-                        <button onclick="confirmCharacter()">确认</button>
+                        <button class="i18n" data-i18n="UI_MENU.confirm" onclick="confirmCharacter()">确认</button>
                     </div>
                 </div>
             </div>
@@ -195,9 +206,22 @@
                     <div id="gameOverContent"></div>
                 </div>
             </div>
+            <div id="docOverlay" class="overlay" style="display:none;">
+                <div class="overlay-content" style="max-width:640px;">
+                    <div class="overlay-header">
+                        <h2 id="docOverlayTitle">文档</h2>
+                        <button class="overlay-close" onclick="closeDocOverlay()">✕</button>
+                    </div>
+                    <div id="docOverlayBody" style="padding:16px;font-size:0.85rem;line-height:1.8;color:#ccc;white-space:pre-wrap;max-height:70vh;overflow-y:auto;"></div>
+                </div>
+            </div>
         </main>
     </div>
 
+    <script src="lang/zh-CN.js"></script>
+    <script src="lang/en-US.js"></script>
+    <script src="lang/zh-TW.js"></script>
+    <script src="doc-content.js"></script>
     <script src="script.js"></script>
 </body>
 </html>

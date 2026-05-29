@@ -1,0 +1,196 @@
+Character Stats Reference
+=========================
+
+Each character has 12 basic attributes, typically ranging 0-100 (some can
+exceed the cap through events). Attributes affect action success rates,
+organization development, and event outcomes.
+
+──────────────────────────────────────
+
+1. Intelligence (int)
+──────────────────────────────────────
+Meaning: Knowledge, calculation, strategic thinking.
+What affects it:
+  · Base 3d4. Increased by Study (learnScience), Govern, Teach, Drill.
+  · Age 31-60: +d(4)/year, 61-80: +d(4)/2, 81+: +d(4)/4.
+  · Random events may increase or decrease.
+What it affects:
+  · Organization Technology = emp.int + avg(int) x (1 + n/10)
+  · Study action success rate = ch(int)
+  · Intellectual labor (type 1) success rate = ch(int)
+  · Chancellor qualification: int > min(emp.int, 90)
+  · One of 7 stats used in haoqiang coup checks
+
+──────────────────────────────────────
+
+2. Charisma (cha)
+──────────────────────────────────────
+Meaning: Personal magnetism, appearance, social influence.
+What affects it:
+  · Base 2d6. Increased by Learn Art, Rest, Elderly Care, Teach, Drill.
+  · Age 31-60: +d(4) or -d(4)/year, 61-80: +d(4)/4.
+  · Failed dates reduce charisma; mobilizing troops reduces it.
+  · Random events may affect it.
+What it affects:
+  · Organization Culture = emp.cha + avg(cha) x (1 + n/10)
+  · Learn Art success rate = ch(cha)
+  · Date (charisma type) success rate depends on cha
+  · Talent market discount: ch(emp.cha) >= 2 gives -d(10) price
+  · Chancellor qualification: cha > min(emp.cha, 80)
+
+──────────────────────────────────────
+
+3. Stamina (sta)
+──────────────────────────────────────
+Meaning: Physical endurance, labor capacity.
+What affects it:
+  · Base 3d4. Increased by Exercise, Rest, Elderly Care. Decreased by
+    Labor, Childbirth, Squeeze.
+  · Age 61-80: -d(4)/year, 81+: -d(10)/year.
+  · Labor and childbirth consume significant stamina.
+  · Random events may affect it.
+What it affects:
+  · Organization Production = overseer.sta + avg(sta) x (1 + n/10)
+  · Physical labor (type 2) success rate = ch(sta)
+  · Overseer qualification: sta > min(emp.sta, 80)
+  · When sta < 5, annual lifespan loss -d(6)
+  · When sta < 10, auto-retirement
+
+──────────────────────────────────────
+
+4. Sexual Ability (sex)
+──────────────────────────────────────
+Meaning: Fertility, sexual prowess.
+What affects it:
+  · Base 4d4. Increased by Study, Exercise, Rest, Squeeze (pop type).
+  · Childbirth severely reduces sex (starts at -d(10,3)).
+  · Age 61-80: -d(4)/year, 81+: -d(4)/year.
+  · Random events may affect it.
+What it affects:
+  · Organization Population = overseer.sex x 0.5 + avg(sex) x 0.5 + 2n
+  · Childbirth target = self.sex + partner.sex + modifier
+  · Date (sexual type) depends on sex
+  · Overseer qualification: sex > min(emp.sex, 80)
+
+──────────────────────────────────────
+
+5. Physique (psq)
+──────────────────────────────────────
+Meaning: Body build, strength, combat ability.
+What affects it:
+  · Base 3d4. Increased by Exercise, Drill.
+  · Age 81+: -d(4)/year.
+  · Random events may affect it.
+What it affects:
+  · Organization Military = (emp.psq+emp.con)x0.25 + (general.psq+con)x0.25
+    + avg(psq)x(1+n/10) + n_soldiers
+  · Exercise success rate = ch(psq)
+  · General qualification: psq > min(emp.psq, 80)
+  · Assassinations: general-type assassins use psq
+
+──────────────────────────────────────
+
+6. Lifespan (hel)
+──────────────────────────────────────
+Meaning: Maximum age. Characters die naturally when age >= hel.
+What affects it:
+  · Base 10d12 (range 10-120). Increased by Elderly Care.
+  · Childbirth and Squeeze reduce lifespan.
+  · When sta < 5, annual -d(6).
+  · Annual +-d(4) random fluctuation.
+  · Random events may affect it.
+What it affects:
+  · Character death when age >= hel
+  · Spouse and child initial lifespan floor is affected by parent/spouse
+    current age
+
+──────────────────────────────────────
+
+7. Assertiveness (con)
+──────────────────────────────────────
+Meaning: Authority, decisiveness, ruling power.
+What affects it:
+  · Base 2d6. Increased by Labor (intellectual), Govern, Childbirth,
+    Assassination, Drill.
+  · Age 31-60: +d(4)/year, 61-80: +d(6)/year, 81+: +d(6)/year.
+  · Ministers gain +d(8) annually from reporting.
+  · Random events may affect it.
+What it affects:
+  · Organization Popular Support = 0.2x(tec+cul+prd+pop+mil)
+    + 0.7xemp.con + 0.125x(sum of 4 ministers' con) + tre/7
+  · Military formula uses con alongside psq
+  · Policy contest: ch(emp.con) vs haoqiang con
+  · Tax resistance: if target con > emp con, they resist
+  · Heir selection: highest con among candidates if no designated heir
+  · General qualification: con > min(emp.con, 80)
+  · Haoqiang coup ranking: sorted by con
+
+──────────────────────────────────────
+
+8. Wealth (wel)
+──────────────────────────────────────
+Meaning: Personal money.
+What affects it:
+  · Starts at 0. Increased by Study, Learn Art, Labor, Govern, Teach.
+  · Reduced by Squeeze, Tax, Confiscation.
+  · Wealth can be inherited on character death.
+  · Marriage brings wealth.
+What it affects:
+  · Rest/Elderly Care success rate = ch(wel)
+  · Marriage proposal requires wel >= 12
+  · Bribery/Transfer requires wel >= 5
+  · Receiving teaching requires wel >= 4
+  · Tax amount = wel x rate / 100
+  · Auto-retirement when wel < 10
+
+──────────────────────────────────────
+
+9. Luck (luc)
+──────────────────────────────────────
+Meaning: Fortune's favor.
+What affects it:
+  · Base 5d20 (range 5-100).
+  · Random events change luck.
+  · Cannot be raised through regular actions.
+What it affects:
+  · Initial Calamity = max(0, (25 - luc/5) x 3)
+  · Annual event check: compagainst(luc, cal) determines good or bad
+
+──────────────────────────────────────
+
+10. Calamity (cal)
+──────────────────────────────────────
+Meaning: Sin, karmic burden, affects the nation's disaster level.
+What affects it:
+  · Initial value determined by luck: max(0, (25-luc/5)x3) - d(10,2)
+  · Increased by: Kill, Summon, Squeeze, Squeeze (pop), Assassinate,
+    Concubine appointment, Adultery, Coup, etc.
+  · Decreased by emperor donating to treasury: 3 gold = 1 cal reduction
+  · Restorers reduce emperor's cal by 1 per year
+What it affects:
+  · Organization Calamity = emp.cal + avg(cal) x (0.2 + n/10)
+  · Annual event check compared against luck
+
+──────────────────────────────────────
+
+11. Education (edu)
+──────────────────────────────────────
+Meaning: Formal education level.
+What affects it:
+  · Starts at 0. Increased by Study, Learn Art, Govern, Teach.
+  · Never naturally decreases.
+What it affects:
+  · Govern success rate = ch(edu)
+  · Teach success rate = ch(edu)
+  · Chancellor qualification: edu > min(emp.edu, 70)
+
+──────────────────────────────────────
+
+12. Experience (exp)
+──────────────────────────────────────
+Meaning: Accumulated life experience.
+What affects it:
+  · Starts at 0. Almost all actions grant +1 on success.
+  · Never decreases.
+What it affects:
+  · Currently for record-keeping only; no direct game mechanic.

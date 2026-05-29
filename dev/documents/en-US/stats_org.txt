@@ -1,0 +1,160 @@
+Organization Stats Reference
+=============================
+
+Your organization has 10 attributes that determine the nation's development
+and stability. They are recalculated annually at year start.
+
+──────────────────────────────────────
+
+1. Technology (tec)
+──────────────────────────────────────
+Formula: Base = emp.int + avg(int) x (1 + n/10)
+         Total = Base + extraTec + accumulatedTec
+Affected by:
+  · Up: Scholars auto-work +1/year, great success +1, extreme +d(4)
+  · Up: "Invest" policy allocates budget to technology
+  · Down: Target territories fluctuate randomly
+Influences:
+  · Popular Support formula: 0.2 weighting
+  · Mandate of Heaven indirectly through Popular Support
+  · One of 7 conquest conditions
+
+──────────────────────────────────────
+
+2. Culture (cul)
+──────────────────────────────────────
+Formula: Base = emp.cha + avg(cha) x (1 + n/10)
+         Total = Base + extraCul + accumulatedCul
+Affected by:
+  · Up: Artists auto-work +1/year, great success +1, extreme +d(4)
+  · Up: "Invest" policy allocates budget to culture
+  · Down: Target territories fluctuate; govern effects expire
+Influences:
+  · Popular Support formula: 0.2 weighting
+  · Mandate of Heaven indirectly through Popular Support
+  · One of 7 conquest conditions
+
+──────────────────────────────────────
+
+3. Production (prd)
+──────────────────────────────────────
+Formula: Base = overseer.sta + avg(sta) x (1 + n/10)
+         Total = Base + extraPrd + accumulatedPrd
+Affected by:
+  · Up: Laborers auto-work +1/year, success +d(4), great +d(6)
+  · Up: "Invest" policy allocates budget
+  · Up: "Squeeze" action temporarily raises production
+  · Down: Squeeze effects expire; target territories fluctuate
+Influences:
+  · Popular Support formula: 0.2 weighting
+  · One of 7 conquest conditions
+
+──────────────────────────────────────
+
+4. Population (pop)
+──────────────────────────────────────
+Formula: Base = overseer.sex x 0.5 + avg(sex) x 0.5 + 2n
+         Total = Base + extraPop + accumulatedPop
+Affected by:
+  · Up: Govern success (great/extreme) raises population
+  · Up: "Invest" policy allocates budget; all non-emperor chars gain sex+1
+  · Up: Pushi concubines contribute +1 population/year
+  · Up: "Squeeze (pop)" temporarily raises population
+  · Down: Character deaths reduce n, lowering the base
+Influences:
+  · Popular Support formula: 0.2 weighting
+  · One of 7 conquest conditions
+
+──────────────────────────────────────
+
+5. Military (mil)
+──────────────────────────────────────
+Formula: Base = (emp.psq+emp.con)x0.25 + (general.psq+general.con)x0.25
+         + avg(psq)x(1+n/10) + n_soldiers
+         Total = Base + extraMil + accumulatedMil
+Affected by:
+  · Up: Soldiers auto-work +2/year, success +1, great +d(4)
+  · Up: "Invest" policy allocates budget
+  · Up: "Drill" action temporarily raises military
+  · Down: Drill effects expire
+Influences:
+  · Popular Support formula: 0.2 weighting
+  · Conquest: if player mil > opp mil, opponent's check is penalized -d(10)
+  · One of 7 conquest conditions
+
+──────────────────────────────────────
+
+6. Popular Support (inf)
+──────────────────────────────────────
+Formula: Base = 0.2 x (tec+cul+prd+pop+mil)
+         + 0.7 x emp.con
+         + 0.125 x (empress+chancellor+overseer+general con sum)
+         + tre/7
+         Total = Base + extraInf + accumulatedInf
+Affected by:
+  · Up: Artists auto-work raises extra popular support
+  · Up: Rising production stats indirectly raise the base
+Influences:
+  · Mandate of Heaven = 500 - penalty + restorer + inf - apo
+  · Conquest: if player inf > opp inf, player's own check is reduced -d(10)
+
+──────────────────────────────────────
+
+7. Treasury (tre)
+──────────────────────────────────────
+Meaning: National funds. Split into baseTreasury (btre, persistent) and
+         extraTreasury (etre, resets to 0 each year).
+Formula: Total = btre + etre
+Affected by:
+  · Up: Tax, Kill/Exile confiscation, Donations, Squeeze (production),
+    Laborer/Scholar auto-work
+  · Up: Year-end settlement transfers etre to btre
+  · Down: Granary policy, Invest policy, Squeeze/Drill/Teach costs,
+    Restorer stipends
+Influences:
+  · Popular Support formula: +tre/7
+  · One of 7 conquest conditions
+
+──────────────────────────────────────
+
+8. Calamity (apo)
+──────────────────────────────────────
+Formula: Base = emp.cal + avg(cal) x (0.2 + n/10)
+         Total = Base + extraCalamity + accumulatedCalamity
+Affected by:
+  · Up: Tax policy raises calamity based on rate
+  · Up: Pushi concubines raise calamity annually
+  · Rising emperor calamity indirectly raises it
+Influences:
+  · Mandate of Heaven = 500 - penalty + restorer + inf - apo
+
+──────────────────────────────────────
+
+9. Mandate of Heaven (mdt)
+──────────────────────────────────────
+Meaning: The dynasty's divine right to rule. Game over when it reaches 0.
+Formula: Mandate = 500 - penaltyAccum + restorerAccum + inf - apo
+         penaltyAccum increased by Exile, Kill, Coup, Dynasty change, etc.
+         restorerAccum increased by Restorers annually
+Affected by:
+  · Up: Rising Popular Support, falling Calamity, Restorers
+  · Down: Exile (+10~80), Kill (+80), Coup (+100), Dynasty change (+100),
+    Squeeze (pop), Concubine appointment, Assassination
+  · Granary policy directly raises Mandate
+  · Assassination directly reduces Mandate
+Influences:
+  · Mandate <= 0 triggers game over
+  · Conquest: if player mdt > opp mdt, opponent's stats take damage
+
+──────────────────────────────────────
+
+10. Level (lvl)
+──────────────────────────────────────
+Meaning: Organizational administrative level.
+Level names: Office(0) → Street(1) → Town(2) → County(3) → Province(4) → Nation(5)
+Requirements:
+  · Conquer all territory targets to gain 1 level
+  · Conquer all administrative targets to gain 1 level
+Influences:
+  · Displays the organization's prestige and development stage
+  · Higher levels unlock stronger talents and spouses

@@ -14,13 +14,18 @@
     "btn_load": "Load",
     "btn_new_game": "New Game",
     "btn_toggle_layout": "Flip",
+    "btn_docs": "Docs",
+    "doc_info": "Game Info",
+    "doc_tutorial": "Tutorial",
+    "doc_stats_char": "Character Stats",
+    "doc_stats_org": "Organization Stats",
     "year_display": "Year {year}"
   },
 
   "UI_MENU": {
     "new_game": "New Game",
     "load_game": "Load Game",
-    "version": "v0.1.0.0",
+    "version": "v0.1.1.0",
     "intro_title": "\"Power shifts from house to house; next year it may be mine.\"",
     "intro_body": "In this land of Little Haiti, before a new order takes shape, there is nothing but decay and its people. But you are different! You are a visionary, destined to lead, to conquer, to write your legend with blood and tears upon this fabled land!",
     "intro_begin": "Begin Journey",
@@ -69,6 +74,7 @@
 
   "UI_CHAR_CARD": {
     "age_year": "{age} yrs",
+    "yr": "yrs",
     "leader": "Leader",
     "acted": "Acted",
     "spouse": "Spouse",
@@ -830,7 +836,11 @@
     "exit_info": "Departure: Year {year} ({age} yrs)",
     "btn_remove_history": "Remove from History",
     "btn_export": "Export Biography",
-    "btn_move_history": "Move to Historical"
+    "btn_move_history": "Move to Historical",
+    "parents": "Parents:",
+    "children": "Children:",
+    "grandparents": "Grandparents:",
+    "lovers": "Lovers:"
   },
 
   "CHAR_CREATION": {
@@ -892,11 +902,16 @@
     "conquest_condition_hint": "Conditions: Emperor free, at least one minister and 3 other actionable characters",
     "conquest_start_btn": "Start Conquest",
     "conquest_join_log": "{name} joined the conquest ({target}, {duration}yr). Action panel changed.",
-    "conquest_start_log": "Conquest of {target} has begun, must complete within {duration} years."
+    "conquest_start_log": "Conquest of {target} has begun, must complete within {duration} years.",
+    "conquered": "Conquered",
+    "unconquered": "Unconquered",
+    "minxin": "Pop {val}",
+    "tiantian": "Man {val}"
   },
 
   "HISTORY": {
     "no_figures": "No historical figures yet.",
+    "view_more": "View more →",
     "figure_entry": "{name} (Entry Age: {age})",
     "figure_exit": "Departed: {year} ({age}yrs) {status}"
   },

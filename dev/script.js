@@ -51,7 +51,7 @@ let yearActionsDone = false;
 let currentActionId = null;
 
 const STAT_KEYS = ['int', 'cha', 'sta', 'sex', 'psq', 'hel', 'con', 'wel', 'luc', 'cal', 'edu', 'exp'];
-const STAT_LABELS = { int: '智力', cha: '魅力', sta: '劳动力', sex: '性吸引力', psq: '体格', hel: '寿命', con: '魄力', wel: '财富', luc: '运气', cal: '灾厄', edu: '教育', exp: '经验' };
+const STAT_LABELS = { int: '智力', cha: '魅力', sta: '劳动力', sex: '性能力', psq: '体格', hel: '寿命', con: '魄力', wel: '财富', luc: '运气', cal: '灾厄', edu: '教育', exp: '经验' };
 const STAT_COLORS = { int: '#4fc3f7', cha: '#ffb74d', sta: '#81c784', sex: '#f06292', psq: '#ff8a65', hel: '#aed581', con: '#ba68c8', wel: '#ce93d8', luc: '#ffd54f', cal: '#90caf9', edu: '#a5d6a7', exp: '#4db6ac' };
 function statColor(key, ch) {
     if (key === 'con' && ch && isHaoQiang(ch)) return '#ff0000';
@@ -115,7 +115,7 @@ const TARGET_SETTINGS = {
 // 征服条件: 7项条件固定为 tec/cul/prd/pop/mil/inf/tre
 const CONQUEST_CONDS = [
     { name:'科技', field:'tec' }, { name:'文化', field:'cul' }, { name:'生产', field:'prd' },
-    { name:'人口', field:'pop' }, { name:'军事', field:'mil' }, { name:'影响', field:'inf' }, { name:'银库', field:'tre' }
+    { name:'人口', field:'pop' }, { name:'军事', field:'mil' }, { name:'民心', field:'inf' }, { name:'银库', field:'tre' }
 ];
 // 各目标的关键条件索引 (0-based)
 const CONQUEST_KEYS = {
@@ -203,7 +203,7 @@ function showTargetDetail(targetId) {
     html += `<span><span class="stat-label">生产:</span> <span class="stat-val">${t.prd||0}</span></span>`;
     html += `<span><span class="stat-label">人口:</span> <span class="stat-val">${t.pop||0}</span></span>`;
     html += `<span><span class="stat-label">军事:</span> <span class="stat-val">${t.mil||0}</span></span>`;
-    html += `<span><span class="stat-label">领导人影响:</span> <span class="stat-val">${t.inf||0}</span></span>`;
+    html += `<span><span class="stat-label">民心:</span> <span class="stat-val">${t.inf||0}</span></span>`;
     html += `<span><span class="stat-label">国库:</span> <span class="stat-val">${t.tre||0}</span></span>`;
     html += `<span><span class="stat-label">灾厄:</span> <span class="stat-val">${t.cal||0}</span></span>`;
     html += `<span><span class="stat-label">天命基础:</span> <span class="stat-val">${t.mdtBase||0}</span></span>`;
@@ -570,7 +570,7 @@ function showOrgBreakdown(key) {
     } else if (key === 'pop') {
         const overseerC = overseer ? overseer.sex * 0.5 : 0;
         const popC = avg('sex') * 0.5 + 2 * n;
-        lines.push(`人口 = 监工性吸引力/2 + 民众平均性吸引力/2 + 人口基数`);
+        lines.push(`人口 = 监工性能力/2 + 民众平均性能力/2 + 人口基数`);
         lines.push(`  监工贡献: ${pf(overseerC)} (sex=${overseer ? overseer.sex : '—'} × 0.5)`);
         lines.push(`  民众贡献: ${pf(popC)} (avg(sex)/2=${pf(avg('sex') * 0.5)} + 基数${pf(2 * n)})`);
         if (cur.apop) lines.push(`  累计(apop): ${pf(cur.apop)}`);
@@ -702,8 +702,8 @@ function generateCharOptions() {
 
 const _surnames = ['张','王','李','白','刘','房','尹','曹','孙','杨','赵','朱','郭','戴','钱','周','吴','郑','冯','陈','褚','魏','蒋','沈','韩'];
 const _imperialSurnames = ['张','王','李','白','刘','房','尹','曹','孙','杨','赵','朱','郭','戴'];
-const _maleGiven = ['伟','强','明','洋','浩','磊','勇','杰','涛','波','斌','超','刚','兵','凯'];
-const _femaleGiven = ['芳','娟','婷','敏','静','丽','雪','燕','琳','倩','薇','悦','雅','蝶','瑶'];
+const _maleGiven = ['伟','强','明','勇','杰','涛','波','斌','刚','兵'];
+const _femaleGiven = ['芳','娟','敏','静','丽','雪','燕','琳','雅','蝶'];
 
 // ---- 扩展的姓名池 ----
 // 新增更多常见姓氏
@@ -713,15 +713,23 @@ const ALL_SURNAMES = _surnames.concat(MORE_SURNAMES);
 // 扩展的男性名字（包括双字名选项）
 const MORE_MALE_GIVEN = [
     // 单字名
-    '龙','海','峰','宇','平','亮','忠','健','翔','飞','鸣','辉','成','德',
+    '龙','海','峰','平','亮','忠','健','翔','飞','鸣','辉','成','德',
     '文','武','荣','松','彬','东','南','西','北','山','川','林','江','河',
-    // 可以用于双字名的第二个字
-    '轩','辰','然','豪','乐','诚','睿','哲','瑞','皓','煜','焱','鑫'
+    // 男女通用名
+    '天','一','子','小','思','雨','云','羽','辰','宁','安','光','阳','君',
+    '青','白','丹','星','风','月','野','千','凡',
+    // 晚清-改革开放常用字
+    '福','寿','富','贵','禄','和','顺','盛','兴','茂','金','宝',
+    '华','义','仁','信','礼','孝','廉','春','秋','立','新','有',
+    '长','连','民','红','卫','继',
+    // 可作双字名第二字的传统字
+    '乐','诚','哲','瑞','根'
 ];
 const MALE_GIVEN_FIRST = [
     // 可用于双字名的第一个字
-    '子','天','文','云','晨','俊','浩','昊','嘉','博','彦','泽','思','雨',
-    '家','建','振','志','宏','永','昌','世','光','明','国','庆','建','军'
+    '子','天','文','云','彦','家','建','振','志','宏','永','昌','世',
+    '光','明','国','庆','军','福','寿','富','贵','和','顺','盛','兴',
+    '金','宝','华','义','仁','信','礼','孝','春','秋','有','连','立','新','民'
 ];
 const ALL_MALE_GIVEN = _maleGiven.concat(MORE_MALE_GIVEN);
 
@@ -730,15 +738,42 @@ const MORE_FEMALE_GIVEN = [
     // 单字名
     '美','慧','淑','珍','英','玉','萍','红','梅','兰','竹','菊','丹','莉',
     '霞','云','彩','凤','娥','莹','秀','华','莲','荷','杏','桃','香','芬',
-    // 可以用于双字名的第二个字
-    '妍','嫣','妮','娜','妃','媛','婷','怡','昕','茹','琳','瑶','琪','颖'
+    // 男女通用名
+    '天','一','子','小','思','雨','羽','辰','宁','安','光','阳','君',
+    '青','白','星','风','月','野','千','凡',
+    // 晚清-改革开放常用字
+    '福','寿','富','贵','和','顺','盛','春','秋','金','宝','素','桂','芝',
+    // 可作双字名第二字的传统字
+    '妃','媛','瑶','琪','颖'
 ];
 const FEMALE_GIVEN_FIRST = [
     // 可用于双字名的第一个字
-    '雅','梦','诗','思','雨','晓','小','若','如','可','安','乐','欣','怡',
-    '嘉','佳','美','丽','淑','婉','秀','文','静','清','玉','雪','彩','云'
+    '雅','梦','思','雨','晓','小','安','乐',
+    '美','丽','淑','婉','秀','文','静','清','玉','雪','彩','云',
+    '福','寿','富','贵','春','秋','华','素','桂','梅','兰','莲','荷'
 ];
 const ALL_FEMALE_GIVEN = _femaleGiven.concat(MORE_FEMALE_GIVEN);
+
+// ---- 年号系统 ----
+const PRESET_REIGNS = [
+    '太平','永昌','永和','永康','永安','永宁','永兴','永寿',
+    '建隆','开宝','天禧','乾兴','天圣','景祐','庆历','皇祐','嘉祐','治平',
+    '元丰','崇宁','大观',
+    '绍熙','庆元','嘉泰','嘉定','端平','景定','咸淳','祥兴',
+    '洪熙','正统','天顺','弘治','隆庆','泰昌',
+    '景德','建武','建安','建德','建元','建兴',
+    '天福','天成','天佑','咸平','咸和','咸宁','乾道','乾德',
+    '大业','大安','大德','大同','大明','至正','至元',
+    '瑞昌','瑞祥','瑞安','昌盛','昌明','明昌','明德',
+    '淳化','淳熙','永丰','永福','永泰','永隆',
+    // 仿宋明风格自制年号
+    '天德','天熙','天昌','永熙','永德','永庆',
+    '明熙','明泰','景丰','景和','德熙','德昌','德兴',
+    '隆丰','隆熙','泰和','庆丰','庆昌','大熙','元熙','宝熙'
+];
+function generateReignName() {
+    return PRESET_REIGNS[Math.floor(Math.random() * PRESET_REIGNS.length)];
+}
 
 // ---- 新的随机名字生成函数 ----
 // 支持生成三字名字（一姓+2名）的概率控制
@@ -789,6 +824,9 @@ function showNameInputOverlay(title, currentName, gender, onConfirm) {
     const titleEl = document.createElement('div');
     titleEl.textContent = title;
     titleEl.style.cssText = 'font-size:18px;font-weight:bold;margin-bottom:16px;color:#333;';
+    const originalEl = document.createElement('div');
+    originalEl.textContent = '原名: ' + currentName;
+    originalEl.style.cssText = 'font-size:13px;color:#888;margin-bottom:10px;';
     const input = document.createElement('input');
     input.type = 'text';
     input.value = currentName;
@@ -812,6 +850,7 @@ function showNameInputOverlay(title, currentName, gender, onConfirm) {
     btnRow.appendChild(randomBtn);
     btnRow.appendChild(confirmBtn);
     win.appendChild(titleEl);
+    win.appendChild(originalEl);
     win.appendChild(input);
     win.appendChild(btnRow);
     overlay.appendChild(win);
@@ -2139,7 +2178,7 @@ function renderRecruitPanel() {
 
     const statOpts = [
         { key: 'int', label: '智力' }, { key: 'cha', label: '魅力' },
-        { key: 'sta', label: '劳动力' }, { key: 'sex', label: '性吸引力' },
+        { key: 'sta', label: '劳动力' }, { key: 'sex', label: '性能力' },
         { key: 'psq', label: '体格' }, { key: 'con', label: '魄力' }
     ];
     statOpts.forEach(s => {
@@ -3283,7 +3322,7 @@ function executePolicyTax(emp, rateIndex) {
     let resistCount = 0;
     G.chars.forEach(ch => {
         if (ch.isDead || ch.exitStatus || ch.id === G.leaderId) return;
-        if ((ch.wel || 0) <= 0) return;
+        if ((ch.wel || 0) <= 8) return;
         const tax = Math.floor(ch.wel * rate / 100);
         if (tax <= 0) return;
         if ((ch.con || 0) > (emp.con || 0)) {
@@ -3588,7 +3627,7 @@ function showTeachTargets(c) {
     // 监工: sta/sex 中较高者
     if (c.profession === '监工') {
         const teachType = c.sta >= c.sex ? 'sta' : 'sex';
-        const subjectName = teachType === 'sta' ? '劳动力' : '性吸引力';
+        const subjectName = teachType === 'sta' ? '劳动力' : '性能力';
         showTargetList(teachType, subjectName);
         return;
     }
@@ -3653,7 +3692,7 @@ function executeTeach(c, target, teachType) {
         int: { label: '智力', key: 'int' },
         cha: { label: '魅力', key: 'cha' },
         sta: { label: '劳动力', key: 'sta' },
-        sex: { label: '性吸引力', key: 'sex' },
+        sex: { label: '性能力', key: 'sex' },
         psq: { label: '体格', key: 'psq' },
         con: { label: '魄力', key: 'con' }
     };
@@ -4065,6 +4104,7 @@ function handleExit(c, reason) {
         }
 
         if (successor) {
+            G._successionPending = true;
             const doSucc = (newName) => {
                 if (newName) {
                     successor.givenname = newName;
@@ -4072,6 +4112,8 @@ function handleExit(c, reason) {
                 }
                 G.leaderId = successor.id;
                 successor.profession = '皇帝';
+                delete successor._class;
+                G._successionPending = false;
                 logLifeEvent(successor, 'appoint', '继位成为新皇帝');
 
                 // If successor is child of deceased emperor, retire the old consort
@@ -4157,6 +4199,19 @@ function handleExit(c, reason) {
                     addLog(`<span class="info">[改朝]</span> 国姓改为「${newSurname}」，天命受损！`);
                 }
 
+                if (!G.reignHistory) G.reignHistory = [];
+                G.reignHistory.push(G.reignName);
+                if (G.isPseudoDynasty) {
+                    if (G.imperialSurname === G.founderSurname) {
+                        G.reignName = generateReignName();
+                        G.isPseudoDynasty = false;
+                    } else {
+                        G.reignName = '伪' + G.imperialSurname;
+                    }
+                } else {
+                    G.reignName = generateReignName();
+                }
+                G.reignYear = 1;
                 addLog(`<span class="log-succession">[继位]</span> ${successor.name} 成为新领袖。`);
             };
             showNameInputOverlay('新皇帝即位', successor.givenname, successor.gender, doSucc);
@@ -4418,7 +4473,7 @@ function renderCharOptions(options) {
                 <span><span class="stat-label">智力:</span> <span class="stat-val">${c.int}</span></span>
                 <span><span class="stat-label">魅力:</span> <span class="stat-val">${c.cha}</span></span>
                 <span><span class="stat-label">劳动力:</span> <span class="stat-val">${c.sta}</span></span>
-                <span><span class="stat-label">性吸引力:</span> <span class="stat-val">${c.sex}</span></span>
+                <span><span class="stat-label">性能力:</span> <span class="stat-val">${c.sex}</span></span>
                 <span><span class="stat-label">体格:</span> <span class="stat-val">${c.psq}</span></span>
                 <span><span class="stat-label">寿命:</span> <span class="stat-val">${c.hel}</span></span>
                 <span><span class="stat-label">魄力:</span> <span class="stat-val">${c.con}</span></span>
@@ -4552,10 +4607,14 @@ function confirmCharacter() {
     G = {
         playerId: playerId,
         enrollTime: new Date().toISOString().slice(0, 10).replace(/-/g, ''),
-        time: 1895,
+        time: 1840,
         leaderId: 0,
         imperialSurname: surname,
         founderSurname: surname,
+        reignName: '开元',
+        reignYear: 1,
+        isPseudoDynasty: false,
+        reignHistory: [],
         headquarterName: headquarterName,
         mdtRestorerAccum: 0,
         initialCharName: chosen.name,
@@ -4604,8 +4663,13 @@ function renderGame() {
     const cur = G.organization.current;
     document.getElementById('gameInfo').textContent =
         `玩家: ${G.playerId}  |  纪元: ${G.time}年`;
+    const reignDisplay = G.reignYear === 1 ? '元年' : `${G.reignYear}年`;
+    const historyText = G.reignHistory && G.reignHistory.length > 0
+        ? '年号历史: ' + G.reignHistory.join(' → ')
+        : '';
     document.getElementById('orgLevelInfo').textContent =
-        `${G.founderSurname} 等级：${ORG_LEVEL_NAMES[cur.lvl]}`;
+        `${G.founderSurname}  ${G.reignName}${reignDisplay}  等级：${ORG_LEVEL_NAMES[cur.lvl]}`;
+    document.getElementById('orgLevelInfo').title = historyText;
     const legendEl = document.getElementById('classLegend');
     if (legendEl) {
         legendEl.innerHTML = Object.entries(CLASS_COLORS).map(([k,v]) =>
@@ -5330,7 +5394,7 @@ function renderConquestActionTab(cq, t) {
     h += `<div style="font-size:0.7rem;color:#aaa;margin:6px 0;">关键条件待验证: ${unverifiedKeys.length}条</div>`;
     // Budget display
     const budget = cq.budget || { tec:100, cul:100, prd:100, pop:100, mil:100, inf:100, tre:100 };
-    const bLabels = { tec:'科技', cul:'文化', prd:'生产', pop:'人口', mil:'军事', inf:'影响', tre:'银库' };
+    const bLabels = { tec:'科技', cul:'文化', prd:'生产', pop:'人口', mil:'军事', inf:'民心', tre:'银库' };
     h += `<div style="font-size:0.65rem;color:#666;margin:4px 0;">剩余权重: ${Object.keys(budget).map(k => `<span style="color:${budget[k]<=0?'#444':'#888'}">${bLabels[k]}${budget[k]}%</span>`).join(' ')}</div>`;
     CONQUEST_CONDS.forEach((cond, i) => {
         const done = validatedIdx.includes(i);
@@ -5363,7 +5427,7 @@ function verifySingleCondition(condIdx) {
     if (!panel) return;
 
     const attrFields = ['tec','cul','prd','pop','mil','inf','tre'];
-    const attrLabels = { tec:'科技', cul:'文化', prd:'生产', pop:'人口', mil:'军事', inf:'影响', tre:'银库' };
+    const attrLabels = { tec:'科技', cul:'文化', prd:'生产', pop:'人口', mil:'军事', inf:'民心', tre:'银库' };
     let weights = {};
     attrFields.forEach(f => weights[f] = 0);
     const budget = cq.budget || { tec:100, cul:100, prd:100, pop:100, mil:100, inf:100, tre:100 };
@@ -5387,7 +5451,7 @@ function verifySingleCondition(condIdx) {
         <span style="color:#888;"> vs </span>
         <span style="color:#e94560;">对手 <span id="liveOppCheck">-</span></span>
     </div>`;
-    html += `<div style="font-size:0.6rem;color:#666;margin-bottom:4px;text-align:center;">基础检定值（不含军事/影响/天命随机修正）</div>`;
+    html += `<div style="font-size:0.6rem;color:#666;margin-bottom:4px;text-align:center;">基础检定值（不含军事/民心/天命随机修正）</div>`;
     html += `<div style="text-align:center;margin-top:10px;">
         <button id="iconfirmValBtn" style="background:#e94560;color:#fff;border:none;padding:4px 14px;border-radius:4px;cursor:pointer;font-size:0.75rem;">确认验证</button>
         <button onclick="cancelInlineValidation()" style="margin-left:6px;background:transparent;color:#aaa;border:1px solid #555;padding:4px 14px;border-radius:4px;cursor:pointer;font-size:0.75rem;">取消</button>
@@ -6143,13 +6207,13 @@ function runCoup(hqList) {
         emp.wel -= exileAmount;
         G.organization.current.btre += exileAmount;
         addLog(`<span class="info">[抄家]</span> 从 ${emp.name} 的财产中没收80%（${exileAmount}财）归入国库。`);
+        G.leaderId = null;
         handleExit(emp, 'exiled');
-
-        // Party members who didn't participate in the coup: check if original emperor was their parent
-        // (no special handling needed, just standard exile)
 
         G.leaderId = champion.id;
         champion.profession = '皇帝';
+        delete champion._class;
+        G._successionPending = false;
         champion.cal += d(10, 2);
 
         G.imperialSurname = champion.surname;
@@ -6168,6 +6232,16 @@ function runCoup(hqList) {
             }
             champion.name = champion.surname + champion.givenname;
             addLog(`<span class="info">[改朝]</span> 国姓改为「${G.imperialSurname}」，天命受损！`);
+            if (!G.reignHistory) G.reignHistory = [];
+            G.reignHistory.push(G.reignName);
+            if (G.imperialSurname !== G.founderSurname) {
+                G.reignName = '伪' + G.imperialSurname;
+                G.isPseudoDynasty = true;
+            } else {
+                G.reignName = generateReignName();
+                G.isPseudoDynasty = false;
+            }
+            G.reignYear = 1;
             updateOrganization();
         };
         showNameInputOverlay('新皇帝即位', champion.givenname, champion.gender, doCoupSucc);
@@ -6256,7 +6330,7 @@ function processPushiAnnualActions() {
             
             const resultLabels = ['失败', '成功', '大成功', '超大成功'];
             const resultStr = resultLabels[r] || '未知';
-            addLog(`<span class="info">[普侍生育检定]</span> ${pushi.name} 与 ${partner.name} 性吸引力${pushi.sex}+${partner.sex}=${sexSum}，d类修正${mod}，目标值${target}，结果：${resultStr}`);
+            addLog(`<span class="info">[普侍生育检定]</span> ${pushi.name} 与 ${partner.name} 性能力${pushi.sex}+${partner.sex}=${sexSum}，d类修正${mod}，目标值${target}，结果：${resultStr}`);
             
             if (r >= 1) {
                 const child = generateChild(pushi, partner, tier, r);
@@ -6429,6 +6503,7 @@ function nextYear() {
 
     G.chars.forEach(c => c._actedThisYear = false);
     G.time += 1;
+    G.reignYear += 1;
 
     // 目标地点年度数值波动
     processTargetFluctuations();
@@ -6534,6 +6609,23 @@ function nextYear() {
     }
 
     addLog(`<span class="log-year">=== 纪元 ${G.time}年 ===</span>`);
+
+    // 灾厄过重折寿
+    G.chars.forEach(c => {
+        if (!c.exitStatus && !c.isDead && (c.cal || 0) >= 90) {
+            let loss;
+            const r = d(100);
+            if (c.cal >= 120) {
+                loss = r <= 25 ? 1 : d(4);
+            } else if (c.cal >= 100) {
+                loss = r <= 50 ? 1 : d(4);
+            } else {
+                loss = r <= 75 ? 1 : d(4);
+            }
+            c.hel = Math.max(1, (c.hel || 0) - loss);
+            addLog(`<span class="log-death">[折寿]</span> 罪业笼罩在${c.name}附近…`);
+        }
+    });
 
     G.chars.forEach(c => {
         if (!c.exitStatus && !c.isDead) {
@@ -6839,9 +6931,8 @@ function nextYear() {
         addLog(`<span class="log-death">[错误]</span> 检测到多个皇帝（${emperors.map(e => e.name).join('、')}），请报告开发者！`);
     }
 
-    // If emperor died/retired this year and there's a 储君, coup is blocked
-    const hasHeir = G.chars.some(x => !x.exitStatus && (x._class === '储君' || (x.parents && x.parents.includes(G.leaderId))));
     const leaderChanged = prevLeaderId !== G.leaderId;
+    const successionYear = leaderChanged || G._successionPending;
 
     // ---- Coup Check ----
     const hqList = G.chars.filter(isHaoQiang);
@@ -6878,10 +6969,9 @@ function nextYear() {
 
     G.coupCooldown = (G.coupCooldown || 0) - 1;
     if (G.coupCooldown <= 0 && hqList.length >= 2) {
-        if (leaderChanged && hasHeir) {
-            const heir = G.chars.find(x => !x.exitStatus && (x._class === '储君' || (x.parents && x.parents.includes(G.leaderId))));
-            addLog(`<span class="log-death">[政变]</span> 政变者蠢蠢欲动，但储君 ${heir ? heir.name : ''} 已稳坐皇位，乱党无隙可乘。`);
-            G.coupCooldown = d(10);
+        if (successionYear) {
+            addLog(`<span style="color:#ff9800">[稳固]</span> 新帝即位，政权尚不稳固，暂无人敢妄动。`);
+            G.coupCooldown = d(10) + 2;
             G.coupYears = 0;
         } else {
             runCoup(hqList);
@@ -7172,6 +7262,7 @@ function handleImportFile(e) {
             if (!G.initialCharName) G.initialCharName = (G.chars && G.chars[0]) ? G.chars[0].name : (G.founderSurname + '帝');
             if (G.coupCooldown === undefined) G.coupCooldown = 0;
             if (G.coupYears === undefined) G.coupYears = 0;
+            if (!G.reignName) { G.reignName = generateReignName(); G.reignYear = 1; G.isPseudoDynasty = false; G.reignHistory = []; }
             if (!G.historicalFigures) G.historicalFigures = [];
             if (!G.engagements) G.engagements = [];
             if (!G.unavailableChars) G.unavailableChars = [];
@@ -7291,6 +7382,7 @@ function doLoad(key) {
         if (!G.initialCharName) G.initialCharName = G.chars[0]?.name || G.founderSurname + '帝';
         if (G.coupCooldown === undefined) G.coupCooldown = 0;
         if (G.coupYears === undefined) G.coupYears = 0;
+        if (!G.reignName) { G.reignName = generateReignName(); G.reignYear = 1; G.isPseudoDynasty = false; G.reignHistory = []; }
         if (!G.historicalFigures) G.historicalFigures = [];
         if (!G.engagements) G.engagements = [];
         if (!G.unavailableChars) G.unavailableChars = [];
@@ -7461,9 +7553,136 @@ function toggleLayout() {
     layout.classList.toggle('flipped');
 }
 
+// ---- Dev Mode ----
+
+let DEV_CLICK_COUNT = 0;
+let DEV_CLICK_TIMER = null;
+
+toggleLayout = (function(orig) {
+    return function() {
+        orig.call(this);
+        DEV_CLICK_COUNT++;
+        const btn = document.getElementById('devCheatBtn');
+        if (DEV_CLICK_COUNT >= 6) {
+            DEV_CLICK_COUNT = 0;
+            if (DEV_CLICK_TIMER) clearTimeout(DEV_CLICK_TIMER);
+            const key = prompt('输入开发者密钥：');
+            if (key === 'HsuHsieh') {
+                if (btn) btn.style.display = '';
+            } else {
+                DEV_CLICK_COUNT = 0;
+            }
+        } else {
+            if (DEV_CLICK_TIMER) clearTimeout(DEV_CLICK_TIMER);
+            DEV_CLICK_TIMER = setTimeout(() => { DEV_CLICK_COUNT = 0; }, 2000);
+        }
+        if (DEV_CLICK_COUNT >= 4 && btn && btn.style.display !== 'none') {
+            DEV_CLICK_COUNT = 0;
+            if (DEV_CLICK_TIMER) clearTimeout(DEV_CLICK_TIMER);
+            btn.style.display = 'none';
+        } else {
+            if (DEV_CLICK_TIMER) clearTimeout(DEV_CLICK_TIMER);
+            DEV_CLICK_TIMER = setTimeout(() => { DEV_CLICK_COUNT = 0; }, 2000);
+        }
+    };
+})(toggleLayout);
+
+function showDevCheat() {
+    const overlay = document.getElementById('devCheatOverlay');
+    if (overlay) { overlay.remove(); return; }
+    const div = document.createElement('div');
+    div.id = 'devCheatOverlay';
+    div.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:20000;display:flex;align-items:center;justify-content:center;';
+    div.addEventListener('click', e => { if (e.target === div) div.remove(); });
+    const box = document.createElement('div');
+    box.style.cssText = 'background:#1a1a2e;border:1px solid #e94560;border-radius:12px;padding:24px;min-width:400px;max-width:600px;max-height:80vh;overflow-y:auto;';
+    const title = document.createElement('h3');
+    title.textContent = '开发者模式 - 角色编辑器';
+    title.style.cssText = 'margin:0 0 12px;color:#e94560;';
+    const sel = document.createElement('select');
+    sel.style.cssText = 'width:100%;padding:6px;margin-bottom:12px;background:#16213e;color:#ccc;border:1px solid #0f3460;border-radius:4px;';
+    const allChars = G ? getAllChars() : [];
+    allChars.forEach((c, i) => {
+        const opt = document.createElement('option');
+        opt.value = i;
+        opt.textContent = c.name + ' (' + STAT_LABELS[c.clazz] + ')';
+        sel.appendChild(opt);
+    });
+    sel.addEventListener('change', renderDevStatFields);
+    const fieldsDiv = document.createElement('div');
+    fieldsDiv.id = 'devStatFields';
+    const btn = document.createElement('button');
+    btn.textContent = '应用修改';
+    btn.style.cssText = 'margin-top:12px;padding:8px 24px;background:#e94560;color:#fff;border:none;border-radius:6px;cursor:pointer;';
+    btn.addEventListener('click', applyDevEdits);
+    box.appendChild(title);
+    box.appendChild(sel);
+    box.appendChild(fieldsDiv);
+    box.appendChild(btn);
+    div.appendChild(box);
+    document.body.appendChild(div);
+    renderDevStatFields();
+}
+
+function renderDevStatFields() {
+    const sel = document.querySelector('#devCheatOverlay select');
+    const fieldsDiv = document.getElementById('devStatFields');
+    if (!sel || !fieldsDiv) return;
+    const idx = parseInt(sel.value);
+    const allChars = G ? getAllChars() : [];
+    const c = allChars[idx];
+    if (!c) return;
+    const DEV_STAT_LABELS = { int:'智力', cha:'魅力', sta:'劳动力', sex:'性能力', psq:'体格', hel:'寿命', con:'魄力', wel:'财富', luc:'运气', cal:'灾厄', edu:'教育', exp:'经验' };
+    let h = '<table style="width:100%;">';
+    const devStats = ['int','cha','sta','sex','psq','hel','con','wel','luc','cal','edu','exp'];
+    devStats.forEach(f => {
+        h += `<tr><td style="padding:3px 6px;color:#aaa;">${DEV_STAT_LABELS[f]}</td>`;
+        h += `<td><input type="number" data-field="${f}" value="${c[f] || 0}" style="width:60px;padding:2px 4px;background:#16213e;color:#fff;border:1px solid #0f3460;border-radius:3px;"></td></tr>`;
+    });
+    h += '</table>';
+    fieldsDiv.innerHTML = h;
+}
+
+function applyDevEdits() {
+    const sel = document.querySelector('#devCheatOverlay select');
+    const idx = parseInt(sel.value);
+    const allChars = G ? getAllChars() : [];
+    const c = allChars[idx];
+    if (!c) return;
+    document.querySelectorAll('#devStatFields input[type="number"]').forEach(inp => {
+        const f = inp.dataset.field;
+        const v = parseInt(inp.value);
+        if (!isNaN(v) && f in c) c[f] = v;
+    });
+    renderGame();
+}
+
 // ---- i18n / Localization ----
 
-const LOCALE_DATA = {};
+const LOCALE_DATA = {
+  "_meta": {"locale":"zh-CN","name":"简体中文"},
+  "UI_HEADER":{"game_title":"海地老皇帝","title_sub":"Monarchy L'Haiti Petit","btn_save":"存档","btn_export":"导出","btn_import":"读取","btn_load":"读档","btn_new_game":"新游戏","btn_toggle_layout":"⇔翻转","btn_docs":"文件","doc_info":"设定文档","doc_tutorial":"新手教程","doc_stats_char":"角色属性详解","doc_stats_org":"组织属性详解","year_display":"年{year}"},
+  "UI_MENU":{"new_game":"新游戏","load_game":"读档","version":"v0.1.1.0","intro_title":"\"皇帝轮流坐，明年到我家。\"","intro_body":"在小海地这片土地上，在新秩序形成之前，这里除了腐朽的人们，什么都没有。但你不一样！你是一位有识之士，注定要领导、征战，在这片传奇的土地上用血与泪写下你的传奇！","intro_begin":"开始征程","select_character":"选择你的角色","select_surname":"选择国姓：","given_name":"名：","name_placeholder":"输入名字...","random":"随机","player_id":"玩家ID：","player_id_placeholder":"输入玩家ID...","hq_name":"驻地名称：","hq_placeholder":"输入办公地点...","hq_default":"办公室","confirm":"确认"},
+  "UI_GAME":{"log_title":"游戏日志","btn_clear_log":"清空日志","btn_export_log":"导出日志","btn_import_log":"导入日志","char_list":"角色列表","btn_free_chars":"自由角色","btn_worker_chars":"职人角色","action_title":"行动","action_hint":"选择一个角色来执行行动","btn_next_year":"下一年 →","tab_court":"内阁","tab_harem":"后宫","tab_unavailable":"不可用角色","tab_dead":"死亡角色","panel_recruit_normal":"常规人才","panel_recruit_bounty":"悬赏招募","panel_recruit_special":"特殊人才","panel_map":"地图","panel_history":"历史人物"},
+  "UI_CHAR_CARD":{"age_year":"{age}岁","leader":"领袖","acted":"已行动","status_alive":"存活","status_dead":"已故","status_killed":"被杀","status_retired":"隐退","status_exiled":"流放","status_dormant":"未觉醒","parents":"父母：","children":"子女：","grandparents":"祖辈：","lovers":"情人：","spouse":"配偶","none":"无","yr":"岁"},
+  "UI_CONQUEST":{"tab_action":"行动","tab_conquest":"征服","in_progress":"征服进行中 · 剩余{remain}年","expedition":"征战：{names}","pending_keys":"关键条件待验证：{count}条","verify":"验证","confirm_verify":"确认验证","cancel":"取消","verify_condition":"验证条件：{name}","weight_hint":"分配权重（每项最大值={max}%，总计≤100%）","live_hint":"基础检定值（不含军事/民心/天命随机修正）","total_weight":"总权重：{weight}%","weight_exceed":"总权重超过100%","player_label":"玩家","opponent_label":"对手","conquest_hint":"详情请查看行动面板的「征服」选项卡","victory_screen_continue":"继续游戏","condition_labels":{"tec":"科技","cul":"文化","prd":"生产","pop":"人口","mil":"军事","inf":"民心","tre":"银库"}},
+  "STAT_LABELS":{"int":"智力","cha":"魅力","sta":"劳动力","sex":"性能力","psq":"体格","hel":"寿命","con":"魄力","wel":"财富","luc":"运气","cal":"灾厄","edu":"教育","exp":"经验"},
+  "ORG_LABELS":{"tec":"科技","cul":"文化","prd":"生产","pop":"人口","mil":"军事","inf":"民心","tre":"银库","apo":"灾厄","mdt":"天命","lvl":"等级"},
+  "HISTORY_LABELS":{"science":"科学","art":"艺术","labor":"劳动","dating":"约会","rest":"休息","birth":"生育"},
+  "CH_LABELS":{"0":"失败","1":"成功","2":"大成功","3":"超大成功"},
+  "EVENT_LABELS":{"entry":"入场","exit":"退场","appoint":"就职","demote":"解职","marry":"娶亲","childbirth":"生育","coup":"政变","dice_crit":"大成功","dice_fail":"大失败","exile":"流放","kill":"杀害","summon":"召集","family_exit":"家族退场"},
+  "ORG_LEVEL_NAMES":["办公室","街道","镇","县","省","国"],
+  "TARGET_TYPES":{"infrastructure":"基础设施","admin":"行政区域","hq":"驻地范围"},
+  "MISC":{"player_info":"玩家: {id}  |  纪元: {year}年","founder_info":"{surname} 等级:{level}","year_display":"年{year}","click_char_to_act":"点击一个角色来执行行动"},
+  "MAP":{"conquered":"已占领","unconquered":"未占领","selected":"选中：{name}","minxin":"民{val}","tiantian":"天{val}"},
+  "TARGET_DETAIL":{"stats_tec":"科技：","stats_cul":"文化：","stats_prd":"生产：","stats_pop":"人口：","stats_mil":"军事：","stats_inf":"民心：","stats_tre":"银库：","stats_apo":"灾厄：","stats_mdt":"天命："},
+  "ACTIONS":{"govern":"理政","teach":"执教","nothing":"无所事事","retire":"隐退","rest":"休息","elderly_care":"养老","squeeze":"压榨","drill":"演兵"},
+  "HISTORY":{"no_figures":"暂无历史人物。","view_more":"查看更多 →"},
+  "BIOGRAPHY":{"btn_remove_from_history":"移出历史","btn_export_biography":"导出生平","btn_move_to_history":"移入历史记录"},
+  "DETAIL_PANEL":{"entry_age":"入场年龄：{age}岁","exit_info":"退场于纪元{year}年（{age}岁）","parents":"父母：","children":"子女：","grandparents":"祖辈：","lovers":"情人：","char_header":"{name} {gender} {age}岁"},
+  "GAME_OVER":{"reason_mdt_depleted":"天命已尽","reason_collapse":"组织已散","btn_export":"导出存档","btn_return":"返回菜单","stat_tech":"科技：","stat_culture":"文化：","stat_prod":"生产：","stat_pop":"人口：","stat_mdt":"天命：","stat_level":"等级：","survivors":"存活角色：","departed":"退场角色：","historical":"历史人物：","era":"纪元 {years}年","title":"· 游戏结束","filename":"海地老皇帝_存档_{name}_纪元{year}.txt"},
+  "COURT_TAB":{"chancellor":"宰相","overseer":"监工","general":"将军","empress":"正宫","lovers":"情人","harem_empty":"后宫空缺。","unavailable":"不可用角色","dead":"死亡角色","current":"{name}[{prof}]{age}岁","qualified":"具备任职资格","candidate":"候","none":"没有任何具备资格的角色。"}
+};
 let CURRENT_LOCALE = 'zh-CN';
 
 function __(key, params) {
@@ -7484,23 +7703,39 @@ function loadLocale(locale, callback) {
         if (callback) callback();
         return;
     }
-    fetch('lang/' + locale + '.json')
-        .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-        .then(data => {
-            Object.assign(LOCALE_DATA, data);
-            CURRENT_LOCALE = locale;
-            if (callback) callback();
-        })
-        .catch(() => {
+    const embedded = { 'en-US': window.LOCALE_EN_US, 'zh-TW': window.LOCALE_ZH_TW };
+    if (embedded[locale]) {
+        CURRENT_LOCALE = locale;
+        Object.assign(LOCALE_DATA, embedded[locale]);
+        if (callback) callback();
+        return;
+    }
+    const xhr = new XMLHttpRequest();
+    xhr.open('GET', 'lang/' + locale + '.json', true);
+    xhr.onload = function() {
+        if (xhr.status === 0 || xhr.status === 200) {
+            try {
+                const data = JSON.parse(xhr.responseText);
+                Object.assign(LOCALE_DATA, data);
+                CURRENT_LOCALE = locale;
+            } catch (e) {
+                CURRENT_LOCALE = 'zh-CN';
+            }
+        } else {
             CURRENT_LOCALE = 'zh-CN';
-            if (callback) callback();
-        });
+        }
+        if (callback) callback();
+    };
+    xhr.onerror = function() {
+        CURRENT_LOCALE = 'zh-CN';
+        if (callback) callback();
+    };
+    xhr.send();
 }
 
 function setLanguage(locale) {
-    const btn = document.getElementById('langSelect');
-    if (btn) btn.textContent = locale === 'en-US' ? 'EN' : locale === 'zh-TW' ? '繁' : '简';
     loadLocale(locale, () => {
+        if (G && G.organization) renderGame();
         document.querySelectorAll('.i18n').forEach(el => {
             const k = el.dataset.i18n;
             if (k) el.textContent = __(k, el.dataset.i18nParams ? JSON.parse(el.dataset.i18nParams) : undefined);
@@ -7508,10 +7743,52 @@ function setLanguage(locale) {
     });
 }
 
-function cycleLanguage() {
-    const locales = ['zh-CN', 'zh-TW', 'en-US'];
-    const idx = (locales.indexOf(CURRENT_LOCALE) + 1) % locales.length;
-    setLanguage(locales[idx]);
+function showLangMenu(event) {
+    const existing = document.getElementById('langMenuOverlay');
+    if (existing) { existing.remove(); return; }
+
+    const overlay = document.createElement('div');
+    overlay.id = 'langMenuOverlay';
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:10000;';
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+
+    const rect = event.target.getBoundingClientRect();
+    const menu = document.createElement('div');
+    menu.style.cssText = `position:fixed;top:${rect.bottom + 4}px;${rect.left > window.innerWidth/2 ? 'right' : 'left'}:${rect.left > window.innerWidth/2 ? window.innerWidth - rect.right : rect.left}px;background:#1a1a2e;border:1px solid #0f3460;border-radius:6px;padding:12px 16px;z-index:10001;min-width:140px;box-shadow:0 4px 16px rgba(0,0,0,0.4);text-align:center;`;
+    menu.addEventListener('click', e => e.stopPropagation());
+
+    const msg = document.createElement('div');
+    msg.textContent = '本地化功能开发中！';
+    msg.style.cssText = 'color:#888;font-size:0.8rem;';
+
+    menu.appendChild(msg);
+    overlay.appendChild(menu);
+    document.body.appendChild(overlay);
+}
+
+// ---- Documents ----
+
+function showDocsMenu(event) {
+    const dd = document.getElementById('docsDropdown');
+    if (dd.style.display === 'block') { dd.style.display = 'none'; return; }
+    dd.style.display = 'block';
+    event.stopPropagation();
+    const close = e => { dd.style.display = 'none'; document.removeEventListener('click', close); };
+    setTimeout(() => document.addEventListener('click', close), 0);
+}
+
+function openDoc(filename) {
+    document.getElementById('docsDropdown').style.display = 'none';
+    const overlay = document.getElementById('docOverlay');
+    const title = document.getElementById('docOverlayTitle');
+    const body = document.getElementById('docOverlayBody');
+    title.textContent = filename === 'info.txt' ? '设定文档' : filename === 'tutorial.txt' ? '新手教程' : filename === 'stats_char.txt' ? '角色属性详解' : '组织属性详解';
+    body.textContent = window.DOC_DATA && window.DOC_DATA[filename] ? window.DOC_DATA[filename] : '文档内容不可用。';
+    overlay.style.display = 'flex';
+}
+
+function closeDocOverlay() {
+    document.getElementById('docOverlay').style.display = 'none';
 }
 
 // ---- Init ----
@@ -7519,6 +7796,9 @@ function cycleLanguage() {
 document.addEventListener('DOMContentLoaded', () => {
     document.querySelector('header').style.display = 'none';
     showScreen('screenMenu');
+
+    // Load default locale
+    loadLocale('zh-CN');
 
     // Check URL for auto-load
     if (localStorage.length > 0) {

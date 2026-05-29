@@ -1,0 +1,36 @@
+Monarchy L'Haiti Petit — 海地老皇帝
+======================================
+
+【Setting】
+In the land of Little Haiti, before a new order takes shape, nothing exists but
+decay and corruption. But you are different — a visionary destined to lead,
+to conquer, and to write your legend in blood and tears upon this fabled soil.
+Build your organization from a single office, expanding to a street, a town,
+a county, a province, and finally a nation.
+
+【Core Mechanics】
+- Role-playing: Each character has 12 attributes (Intelligence, Charisma,
+  Stamina, Sexual Ability, Physique, Lifespan, Assertiveness, Wealth,
+  Luck, Calamity, Education, Experience). Characters age, marry, have
+  children, and pass on through generations.
+- Action System: Each year, assign one action per character (Govern, Teach,
+  Drill, Squeeze, Study, Exercise, Labor, Date, Rest, Retire, etc.).
+  Characters are marked as acted after their action is complete.
+- Court & Harem: The Chancellor governs, the General commands the army,
+  the Overseer manages production, and the Empress/Consorts maintain the
+  bloodline.
+- Mandate of Heaven: Popular support (derived from stats and wealth) minus
+  calamity (from character misfortune) equals the Mandate. When the Mandate
+  reaches zero, the game ends.
+- Conquest System: Capturing targets on the map requires validating 7
+  conditions (Technology, Culture, Production, Population, Military,
+  Popular Support, Treasury). Each condition requires budget allocation
+  and a skill check. All key conditions must pass for victory.
+
+【Goals】
+- Short-term: Develop organization attributes, recruit talent, stabilize
+  your regime.
+- Mid-term: Conquer neighboring targets, raise your organization level
+  (Office → Street → Town → County → Province → Nation).
+- Long-term: Perpetuate your bloodline through dynastic succession and
+  build a lasting legacy.
